@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "locale": "en-GB",
+  "prefixes": [
+    "voicemark",
+    "voice mark"
+  ],
+  "rules": {
+    "command_only": [
+      {
+        "from": "voice mark",
+        "to": "voicemark",
+        "safety": "safe",
+        "notes": "Normalise prefix spacing/punctuation."
+      },
+      {
+        "from": "and make it",
+        "to": "unmake",
+        "safety": "guarded",
+        "only_when_followed_by": [
+          "bold",
+          "italic",
+          "underline"
+        ],
+        "notes": "ASR often maps 'unmake' \u2192 'and make it'."
+      },
+      {
+        "from": "and make",
+        "to": "unmake",
+        "safety": "guarded",
+        "only_when_followed_by": [
+          "bold",
+          "italic",
+          "underline"
+        ],
+        "notes": "ASR often maps 'unmake' \u2192 'and make'."
+      },
+      {
+        "from": "make it",
+        "to": "unmake",
+        "safety": "guarded",
+        "only_when_followed_by": [
+          "bold",
+          "italic",
+          "underline"
+        ],
+        "notes": "ASR sometimes collapses 'unmake' to 'make it'."
+      },
+      {
+        "from": "metallic",
+        "to": "italic",
+        "safety": "guarded",
+        "only_when_in_commands": [
+          "make italic",
+          "unmake italic",
+          "toggle italic"
+        ],
+        "notes": "Common mishearing for 'italic'."
+      },
+      {
+        "from": "paragraph",
+        "to": "new paragraph",
+        "safety": "guarded",
+        "only_when_exact_command": true,
+        "notes": "Some ASR outputs drop 'new' and leave 'paragraph'."
+      }
+    ],
+    "punctuation_tokens": [
+      {
+        "spoken": "comma",
+        "symbol": ","
+      },
+      {
+        "spoken": "full stop",
+        "symbol": "."
+      },
+      {
+        "spoken": "question mark",
+        "symbol": "?"
+      },
+      {
+        "spoken": "exclamation mark",
+        "symbol": "!"
+      },
+      {
+        "spoken": "colon",
+        "symbol": ":"
+      },
+      {
+        "spoken": "semicolon",
+        "symbol": ";"
+      },
+      {
+        "spoken": "dash",
+        "symbol": "\u2013"
+      },
+      {
+        "spoken": "hyphen",
+        "symbol": "-"
+      }
+    ],
+    "symbol_aliases": [
+      ",",
+      ".",
+      "?",
+      "!",
+      ":",
+      ";",
+      "\u2013",
+      "-"
+    ],
+    "us_aliases": {
+      "enabled": false,
+      "map": {
+        "period": "full stop"
+      }
+    }
+  },
+  "safety": {
+    "require_prefix": true,
+    "confirm_destructive": true,
+    "undo_always_available": true
+  }
+}

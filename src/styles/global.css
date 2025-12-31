@@ -30,3 +30,45 @@ button {
 select {
   font-family: inherit;
 }
+
+/* TipTap Editor Styles */
+.editor-content {
+  min-height: 100%;
+  outline: none;
+  color: #d4d4d4;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.editor-content p {
+  margin: 0 0 1em 0;
+}
+
+.editor-content p:last-child {
+  margin-bottom: 0;
+}
+
+.editor-content strong {
+  font-weight: 700;
+}
+
+.editor-content em {
+  font-style: italic;
+}
+
+.editor-content u {
+  text-decoration: underline;
+}
+
+.editor-content:focus {
+  outline: none;
+}
+
+/* Placeholder for empty editor */
+.editor-content p.is-editor-empty:first-child::before {
+  content: 'Start typing or use voice dictation...';
+  color: #858585;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

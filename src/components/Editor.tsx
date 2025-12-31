@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 
+const MAX_CONVERSION_ITERATIONS = 10; // Prevent infinite loops when processing nested tags
+
 const Editor: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
 
@@ -38,14 +40,12 @@ const Editor: React.FC = () => {
     
     // Handle formatting - process iteratively to handle nested tags
     // Keep processing until no more changes occur
-    const maxIterations = 10; // Prevent infinite loops
     let iteration = 0;
     let previousResult = '';
     
-    while (result !== previousResult && iteration < maxIterations) {
+    while (result !== previousResult && iteration < MAX_CONVERSION_ITERATIONS) {
       previousResult = result;
-      // Match tags that don't contain other tags of the same type
-      result = result.replace(/<strong>([^<>]*)<\/strong>/g, '**$1**');
+      // Process bold tags
       result = result.replace(/<strong>(.*?)<\/strong>/gs, (match, content) => {
         // If content has no more strong tags, convert it
         if (!content.includes('<strong>')) {
@@ -53,7 +53,7 @@ const Editor: React.FC = () => {
         }
         return match;
       });
-      result = result.replace(/<em>([^<>]*)<\/em>/g, '*$1*');
+      // Process italic tags
       result = result.replace(/<em>(.*?)<\/em>/gs, (match, content) => {
         // If content has no more em tags, convert it
         if (!content.includes('<em>')) {
@@ -61,9 +61,8 @@ const Editor: React.FC = () => {
         }
         return match;
       });
-      result = result.replace(/<u>([^<>]*)<\/u>/g, '<u>$1</u>');
+      // Keep underline as HTML
       result = result.replace(/<u>(.*?)<\/u>/gs, (match, content) => {
-        // Keep underline as HTML
         if (!content.includes('<u>')) {
           return '<u>' + content + '</u>';
         }

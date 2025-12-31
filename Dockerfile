@@ -1,94 +1,28 @@
-# VoiceMark Development Container
-# Multi-stage build for lint, test, and documentation services
+# VoiceMark dev container (lint/test/docs)
+FROM debian:bookworm
 
-FROM ubuntu:22.04 as base
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
 
-# Prevent interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends     ca-certificates curl git build-essential pkg-config python3 libssl-dev     && rm -rf /var/lib/apt/lists/*
 
-# Install common dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    python3 \
-    python3-pip \
-    python3-venv \
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
+# Node LTS
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -  && apt-get update && apt-get install -y --no-install-recommends nodejs  && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /workspace
+# pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy project files
-COPY . /workspace/
+# Rust
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Lint stage
-FROM base as lint
+# Non-root user
+RUN groupadd --gid ${USER_GID} ${USERNAME}  && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}
 
-# Install linting tools
-RUN pip3 install --no-cache-dir \
-    pylint \
-    flake8 \
-    black \
-    isort \
-    mypy
+WORKDIR /work
+USER ${USERNAME}
+ENV PATH="/home/${USERNAME}/.cargo/bin:${PATH}"
+RUN rustup default stable
 
-RUN npm install -g \
-    eslint \
-    prettier \
-    markdownlint-cli
-
-# Set entrypoint for linting
-ENTRYPOINT ["echo", "Lint service ready. Run specific linters as needed."]
-
-# Test stage
-FROM base as test
-
-# Install testing frameworks
-RUN pip3 install --no-cache-dir \
-    pytest \
-    pytest-cov \
-    pytest-mock
-
-# Set entrypoint for testing
-ENTRYPOINT ["echo", "Test service ready. Run pytest or other test commands."]
-
-# Documentation stage
-FROM base as docs
-
-# Install documentation tools
-RUN pip3 install --no-cache-dir \
-    mkdocs \
-    mkdocs-material \
-    sphinx \
-    sphinx-rtd-theme
-
-# Set entrypoint for documentation
-ENTRYPOINT ["echo", "Docs service ready. Use mkdocs or sphinx commands."]
-
-# Default stage for general development
-FROM base as dev
-
-# Install all tools
-RUN pip3 install --no-cache-dir \
-    pylint \
-    flake8 \
-    black \
-    isort \
-    mypy \
-    pytest \
-    pytest-cov \
-    pytest-mock \
-    mkdocs \
-    mkdocs-material \
-    sphinx \
-    sphinx-rtd-theme
-
-RUN npm install -g \
-    eslint \
-    prettier \
-    markdownlint-cli
-
-# Default command
-CMD ["/bin/bash"]
+CMD ["bash"]

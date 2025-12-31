@@ -1,63 +1,20 @@
-version: '3.8'
-
 services:
-  # Linting service
-  lint:
-    build:
-      context: .
-      target: lint
-    volumes:
-      - .:/workspace
-    working_dir: /workspace
-    command: >
-      sh -c "
-      echo 'Running linters...';
-      echo 'Python: black, flake8, pylint';
-      echo 'JavaScript: eslint, prettier';
-      echo 'Markdown: markdownlint';
-      echo 'Use: docker-compose run --rm lint <command>';
-      "
-
-  # Testing service
-  test:
-    build:
-      context: .
-      target: test
-    volumes:
-      - .:/workspace
-    working_dir: /workspace
-    command: >
-      sh -c "
-      echo 'Test service ready';
-      echo 'Use: docker-compose run --rm test pytest <args>';
-      "
-
-  # Documentation service
-  docs:
-    build:
-      context: .
-      target: docs
-    volumes:
-      - .:/workspace
-    working_dir: /workspace
-    ports:
-      - "8000:8000"
-    command: >
-      sh -c "
-      echo 'Documentation service ready';
-      echo 'Build docs: docker-compose run --rm docs mkdocs build';
-      echo 'Serve docs: docker-compose up docs';
-      mkdocs serve -a 0.0.0.0:8000;
-      "
-
-  # General development environment
   dev:
     build:
       context: .
-      target: dev
+    working_dir: /work
     volumes:
-      - .:/workspace
-    working_dir: /workspace
-    stdin_open: true
-    tty: true
-    command: /bin/bash
+      - .:/work:cached
+      - cargo_registry:/home/dev/.cargo/registry
+      - cargo_git:/home/dev/.cargo/git
+      - cargo_target:/work/src-tauri/target
+      - pnpm_store:/home/dev/.local/share/pnpm/store
+    environment:
+      - RUST_BACKTRACE=1
+    command: bash
+
+volumes:
+  cargo_registry:
+  cargo_git:
+  cargo_target:
+  pnpm_store:

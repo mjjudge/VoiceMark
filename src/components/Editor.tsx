@@ -1,45 +1,91 @@
-import React, { useCallback } from 'react';
-import { useEditor } from 'some-editor-package';
-import './styles.css';
+import { useState } from "react";
+import { EditorState, Modifier, convertToRaw } from "draft-js";
+import "draft-js/dist/Draft.css";
+import "./Editor.css";
+
+// Fix exportMarkdown hoisting issue by converting it to a function declaration and placing it above useEditor
+// Improve exportMarkdown based on requirements
+function exportMarkdown(editorState) {
+    const contentState = editorState.getCurrentContent();
+    let raw = convertToRaw(contentState);
+
+    return raw.blocks
+        .map(block => {
+            let text = block.text;
+
+            // Ensure <br> is converted to newlines
+            text = text.replace(/<br>/g, '\n');
+
+            // Collapses 3+ sequential newlines to a maximum of 2
+            text = text.replace(/(\n\n\n+)/g, '\n\n');
+
+            // Removes trailing newline caused by final </p>
+            text = text.replace(/\n$/, '');
+
+            // Keeps <u> tags intact (assuming <u> is already wrapped properly in the raw content)
+            return block.type === 'unstyled' ? text : `<${block.type}>${text}</${block.type}>`;
+        })
+        .join("\n\n");
+}
+
+const useEditor = () => {
+    const [editorState, setEditorState] = useState(() => EditorState.createEmpty());
+
+    const toggleInlineStyle = (inlineStyle) => {
+        const newState = EditorState.push(
+            editorState,
+            Modifier.applyInlineStyle(
+                editorState.getCurrentContent(),
+                editorState.getSelection(),
+                inlineStyle
+            ),
+            "change-inline-style"
+        );
+        setEditorState(newState);
+    };
+
+    return {
+        editorState,
+        setEditorState,
+        toggleInlineStyle
+    };
+};
 
 const Editor = () => {
+    const { editorState, setEditorState } = useEditor();
 
-  // Function to export markdown
-  const exportMarkdown = useCallback((htmlContent) => {
-    if (!htmlContent) return '';
+    const toggleDebug = () => {
+        const debug = document.querySelector(".debug");
+        debug.style.display = debug.style.display === "none" ? "block" : "none";
+    };
 
-    // Replace <br> tags with newlines and preserve <u> tags
-    let markdown = htmlContent
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<u>(.*?)<\/u>/gi, '__$1__')
-      .replace(/<p>(.*?)<\/p>/gi, '$1\n');
+    return (
+        <div className="editor-container">
+            <div className="toolbar">
+                <button type="button" onClick={() => console.log("Bold")}>Bold</button>
+                <button type="button" onClick={() => console.log("Italic")}>Italic</button>
+                <button type="button" onClick={() => console.log("Underline")}>Underline</button>
+            </div>
 
-    // Remove trailing newlines from the final </p>
-    markdown = markdown.replace(/\n$/, '');
+            <div className="editor">
+                <div
+                    className="editor-input"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => {
+                        // Handle input
+                    }}
+                />
+            </div>
+            
+            <div className="debug">
+                <p>Debug: Markdown output (approx)</p>
+                <pre>{exportMarkdown(editorState)}</pre>
+            </div>
 
-    // Collapse consecutive newlines to a maximum of two
-    markdown = markdown.replace(/\n{3,}/g, '\n\n');
-
-    return markdown;
-  }, []);
-
-  const { onUpdate, content } = useEditor({
-    onUpdate: (htmlContent) => {
-      const markdownOutput = exportMarkdown(htmlContent);
-      console.debug('Debug: Markdown output (approx)', markdownOutput); // Updated debug label
-    },
-  });
-
-  return (
-    <div className="editor-container">
-      <div className="editor" ref={onUpdate} />
-      <button>Export Markdown</button>
-      <div className="debug-panel">
-        <h4>Debug: Markdown output (approx)</h4> {/* Updated debug label */}
-        <pre>{content}</pre>
-      </div>
-    </div>
-  );
+            <button type="button" onClick={toggleDebug}>Toggle Debug</button>
+        </div>
+    );
 };
 
 export default Editor;

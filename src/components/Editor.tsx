@@ -23,7 +23,7 @@ function exportMarkdown(html: string): string {
     // Convert italic
     .replace(/<em>/g, '*')
     .replace(/<\/em>/g, '*');
-    // Note: <u> tags are preserved as-is (no replacement needed)
+    // Preserve <u> tags as HTML for underline formatting (as required)
 
   // Collapse 3 or more sequential newlines into a maximum of 2
   markdown = markdown.replace(/\n{3,}/g, '\n\n');

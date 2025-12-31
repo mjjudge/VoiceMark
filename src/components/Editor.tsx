@@ -1,7 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import { applyEditorOp } from '../editor/applyToTiptap';
+import type { EditorOp } from '../editor/ops';
+
+// Function to export content as Markdown with HTML support for underline
+function exportMarkdown(html: string): string {
+  if (!html) return '';
+  
+  // Convert HTML to Markdown-like format
+  // We preserve <u> tags for underline as per requirements
+  let markdown = html
+    // Convert <br> tags to newlines
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Remove wrapping <p> tags but keep line breaks
+    .replace(/<p>/g, '')
+    .replace(/<\/p>/g, '\n')
+    // Convert bold - use global flag to handle multiple occurrences
+    .replace(/<strong>/g, '**')
+    .replace(/<\/strong>/g, '**')
+    // Convert italic
+    .replace(/<em>/g, '*')
+    .replace(/<\/em>/g, '*');
+    // Preserve <u> tags as HTML for underline formatting (as required)
+
+  // Collapse 3 or more sequential newlines into a maximum of 2
+  markdown = markdown.replace(/\n{3,}/g, '\n\n');
+
+  // Trim to avoid trailing newlines
+  markdown = markdown.trim();
+
+  return markdown;
+}
 
 const Editor: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
@@ -19,51 +50,35 @@ const Editor: React.FC = () => {
       },
     },
     onUpdate: ({ editor: updatedEditor }) => {
-      // Update markdown output when editor content changes
-      setMarkdownOutput(exportMarkdown(updatedEditor.getHTML()));
+      // Update markdown output only when debug panel is visible
+      if (showDebug) {
+        setMarkdownOutput(exportMarkdown(updatedEditor.getHTML()));
+      }
     },
   });
 
-  // Function to export content as Markdown with HTML support for underline
-  const exportMarkdown = (html: string): string => {
-    if (!html) return '';
-    
-    // Convert HTML to Markdown-like format
-    // We preserve <u> tags for underline as per requirements
-    // Process from outermost to innermost to handle nesting correctly
-    const markdown = html
-      // Remove wrapping <p> tags but keep line breaks
-      .replace(/<p>/g, '')
-      .replace(/<\/p>/g, '\n')
-      // Convert bold - use global flag to handle multiple occurrences
-      .replace(/<strong>/g, '**')
-      .replace(/<\/strong>/g, '**')
-      // Convert italic
-      .replace(/<em>/g, '*')
-      .replace(/<\/em>/g, '*')
-      // Keep underline as HTML tags (already in correct format)
-      .trim();
-
-    return markdown;
-  };
-
-  // Initialize markdown output when editor is ready
+  // Initialize markdown output when editor is ready or debug panel is shown
   useEffect(() => {
-    if (editor) {
+    if (editor && showDebug) {
       setMarkdownOutput(exportMarkdown(editor.getHTML()));
     }
+  }, [editor, showDebug]);
+
+  // Dispatch function to apply editor operations
+  const dispatch = useCallback((op: EditorOp) => {
+    applyEditorOp(editor, op);
   }, [editor]);
 
   const toggleBold = () => {
-    editor?.chain().focus().toggleBold().run();
+    dispatch({ type: 'format', style: 'bold', action: 'toggle' });
   };
 
   const toggleItalic = () => {
-    editor?.chain().focus().toggleItalic().run();
+    dispatch({ type: 'format', style: 'italic', action: 'toggle' });
   };
 
   const toggleUnderline = () => {
-    editor?.chain().focus().toggleUnderline().run();
+    dispatch({ type: 'format', style: 'underline', action: 'toggle' });
   };
 
   return (
@@ -71,6 +86,7 @@ const Editor: React.FC = () => {
       {/* Formatting Toolbar */}
       <div style={styles.toolbar}>
         <button
+          type="button"
           onClick={toggleBold}
           style={{
             ...styles.toolbarButton,
@@ -81,6 +97,7 @@ const Editor: React.FC = () => {
           <strong>B</strong>
         </button>
         <button
+          type="button"
           onClick={toggleItalic}
           style={{
             ...styles.toolbarButton,
@@ -91,6 +108,7 @@ const Editor: React.FC = () => {
           <em>I</em>
         </button>
         <button
+          type="button"
           onClick={toggleUnderline}
           style={{
             ...styles.toolbarButton,
@@ -110,10 +128,11 @@ const Editor: React.FC = () => {
       {/* Debug Panel */}
       <div style={styles.debugPanel}>
         <button
+          type="button"
           onClick={() => setShowDebug(!showDebug)}
           style={styles.debugToggle}
         >
-          {showDebug ? '▼' : '▶'} Debug: Markdown output
+          {showDebug ? '▼' : '▶'} Debug: Markdown output (approx)
         </button>
         {showDebug && (
           <pre style={styles.debugContent}>

@@ -25,19 +25,54 @@ const Editor: React.FC = () => {
     // Get HTML content
     const html = editor.getHTML();
     
-    // Basic conversion to Markdown
-    const markdown = html
-      .replace(/<p><\/p>/g, '\n')
-      .replace(/<p>/g, '')
-      .replace(/<\/p>/g, '\n')
-      .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
-      .replace(/<em>(.*?)<\/em>/g, '*$1*')
-      // Keep underline as HTML
-      .replace(/<u>(.*?)<\/u>/g, '<u>$1</u>')
-      .replace(/<br\s*\/?>/g, '\n')
-      .trim();
+    // Process HTML to Markdown with better handling of nested tags
+    let result = html;
     
-    return markdown;
+    // Handle paragraphs
+    result = result.replace(/<p><\/p>/g, '\n\n');
+    result = result.replace(/<p>/g, '');
+    result = result.replace(/<\/p>/g, '\n\n');
+    
+    // Handle line breaks
+    result = result.replace(/<br\s*\/?>/g, '\n');
+    
+    // Handle formatting - process iteratively to handle nested tags
+    // Keep processing until no more changes occur
+    const maxIterations = 10; // Prevent infinite loops
+    let iteration = 0;
+    let previousResult = '';
+    
+    while (result !== previousResult && iteration < maxIterations) {
+      previousResult = result;
+      // Match tags that don't contain other tags of the same type
+      result = result.replace(/<strong>([^<>]*)<\/strong>/g, '**$1**');
+      result = result.replace(/<strong>(.*?)<\/strong>/gs, (match, content) => {
+        // If content has no more strong tags, convert it
+        if (!content.includes('<strong>')) {
+          return '**' + content + '**';
+        }
+        return match;
+      });
+      result = result.replace(/<em>([^<>]*)<\/em>/g, '*$1*');
+      result = result.replace(/<em>(.*?)<\/em>/gs, (match, content) => {
+        // If content has no more em tags, convert it
+        if (!content.includes('<em>')) {
+          return '*' + content + '*';
+        }
+        return match;
+      });
+      result = result.replace(/<u>([^<>]*)<\/u>/g, '<u>$1</u>');
+      result = result.replace(/<u>(.*?)<\/u>/gs, (match, content) => {
+        // Keep underline as HTML
+        if (!content.includes('<u>')) {
+          return '<u>' + content + '</u>';
+        }
+        return match;
+      });
+      iteration++;
+    }
+    
+    return result.trim();
   };
 
   if (!editor) {

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 
 const Editor: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
+  const [markdownOutput, setMarkdownOutput] = useState('');
 
   const editor = useEditor({
     extensions: [
@@ -17,32 +18,41 @@ const Editor: React.FC = () => {
         class: 'editor-content',
       },
     },
+    onUpdate: ({ editor: updatedEditor }) => {
+      // Update markdown output when editor content changes
+      setMarkdownOutput(exportMarkdown(updatedEditor.getHTML()));
+    },
   });
 
   // Function to export content as Markdown with HTML support for underline
-  const exportMarkdown = (): string => {
-    if (!editor) return '';
-    
-    // Get HTML content
-    const html = editor.getHTML();
+  const exportMarkdown = (html: string): string => {
+    if (!html) return '';
     
     // Convert HTML to Markdown-like format
     // We preserve <u> tags for underline as per requirements
+    // Process from outermost to innermost to handle nesting correctly
     const markdown = html
       // Remove wrapping <p> tags but keep line breaks
       .replace(/<p>/g, '')
       .replace(/<\/p>/g, '\n')
-      // Convert bold
-      .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+      // Convert bold - use global flag to handle multiple occurrences
+      .replace(/<strong>/g, '**')
+      .replace(/<\/strong>/g, '**')
       // Convert italic
-      .replace(/<em>(.*?)<\/em>/g, '*$1*')
-      // Keep underline as HTML tags
-      // .replace(/<u>(.*?)<\/u>/g, '<u>$1</u>') - already in HTML format
-      // Handle nested formatting - we need to handle this more carefully
+      .replace(/<em>/g, '*')
+      .replace(/<\/em>/g, '*')
+      // Keep underline as HTML tags (already in correct format)
       .trim();
 
     return markdown;
   };
+
+  // Initialize markdown output when editor is ready
+  useEffect(() => {
+    if (editor) {
+      setMarkdownOutput(exportMarkdown(editor.getHTML()));
+    }
+  }, [editor]);
 
   const toggleBold = () => {
     editor?.chain().focus().toggleBold().run();
@@ -55,8 +65,6 @@ const Editor: React.FC = () => {
   const toggleUnderline = () => {
     editor?.chain().focus().toggleUnderline().run();
   };
-
-  const markdownOutput = exportMarkdown();
 
   return (
     <div style={styles.container}>

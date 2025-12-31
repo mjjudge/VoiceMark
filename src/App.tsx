@@ -1,7 +1,7 @@
 import React from 'react';
 import Header from './components/Header';
 import TranscriptPanel from './components/TranscriptPanel';
-import EditorPlaceholder from './components/EditorPlaceholder';
+import Editor from './components/Editor';
 import Footer from './components/Footer';
 import './styles/global.css';
 
@@ -10,7 +10,7 @@ const App: React.FC = () => {
     <div style={styles.app}>
       <Header />
       <TranscriptPanel />
-      <EditorPlaceholder />
+      <Editor />
       <Footer />
     </div>
   );

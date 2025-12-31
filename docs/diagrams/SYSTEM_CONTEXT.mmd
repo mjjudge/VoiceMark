@@ -1,0 +1,11 @@
+%% VoiceMark system context
+flowchart LR
+  User((User))
+  VM[VoiceMark Desktop App]
+  Sidecar[Whisper.cpp Sidecar]
+  Storage[(Local Storage\nSQLite + Files)]
+
+  User -->|record/import audio| VM
+  VM -->|audio| Sidecar
+  Sidecar -->|transcript| VM
+  VM -->|save notes/models| Storage

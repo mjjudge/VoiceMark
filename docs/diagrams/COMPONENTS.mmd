@@ -1,0 +1,29 @@
+%% VoiceMark components
+flowchart TB
+  subgraph UI["Tauri + React UI"]
+    Recorder[Recorder / Import]
+    Editor[Markdown Editor]
+    Settings[Settings & Locale Packs]
+    Models[Model Manager]
+  end
+
+  subgraph BE["Rust Backend"]
+    SidecarMgr[Whisper Sidecar Manager]
+    CmdProc[Command Processor]
+    DocBuf[Markdown Document Buffer]
+    OpLog[Operation Log\nUndo/Redo]
+    Persist[Persistence\nSQLite + Files]
+  end
+
+  Sidecar[Whisper.cpp Sidecar]
+
+  Recorder --> SidecarMgr
+  SidecarMgr --> Sidecar
+  Sidecar --> SidecarMgr
+  SidecarMgr --> CmdProc
+  CmdProc --> DocBuf
+  DocBuf --> OpLog
+  OpLog --> Persist
+  Settings --> CmdProc
+  Models --> SidecarMgr
+  Editor <---> DocBuf

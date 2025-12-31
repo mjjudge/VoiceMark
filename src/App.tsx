@@ -22,7 +22,7 @@ const styles = {
     flexDirection: 'column' as const,
     height: '100vh',
     width: '100%',
-  },
+  } as React.CSSProperties,
 };
 
 export default App;

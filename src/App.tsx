@@ -1,0 +1,28 @@
+import React from 'react';
+import Header from './components/Header';
+import TranscriptPanel from './components/TranscriptPanel';
+import EditorPlaceholder from './components/EditorPlaceholder';
+import Footer from './components/Footer';
+import './styles/global.css';
+
+const App: React.FC = () => {
+  return (
+    <div style={styles.app}>
+      <Header />
+      <TranscriptPanel />
+      <EditorPlaceholder />
+      <Footer />
+    </div>
+  );
+};
+
+const styles = {
+  app: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    height: '100vh',
+    width: '100%',
+  },
+};
+
+export default App;

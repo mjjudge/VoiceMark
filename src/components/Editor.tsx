@@ -11,7 +11,6 @@ function exportMarkdown(html: string): string {
   
   // Convert HTML to Markdown-like format
   // We preserve <u> tags for underline as per requirements
-  // Process from outermost to innermost to handle nesting correctly
   let markdown = html
     // Convert <br> tags to newlines
     .replace(/<br\s*\/?>/gi, '\n')
@@ -24,7 +23,7 @@ function exportMarkdown(html: string): string {
     // Convert italic
     .replace(/<em>/g, '*')
     .replace(/<\/em>/g, '*');
-    // Keep underline as HTML tags (already in correct format)
+    // Note: <u> tags are preserved as-is (no replacement needed)
 
   // Collapse 3 or more sequential newlines into a maximum of 2
   markdown = markdown.replace(/\n{3,}/g, '\n\n');

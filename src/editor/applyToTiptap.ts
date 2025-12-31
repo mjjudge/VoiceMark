@@ -66,13 +66,9 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
       break;
 
     case 'deleteLastWord':
-      // Delete backwards to the previous word boundary
-      editor.commands.deleteRange({
-        from: editor.state.selection.from,
-        to: editor.state.selection.from,
-      });
-      // TipTap doesn't have a built-in "delete last word" command,
-      // so we implement it by selecting backwards to word start and deleting
+      // Delete the last word before the cursor, including any trailing whitespace.
+      // Implementation: Uses a regex pattern to find the last sequence of non-whitespace
+      // characters (the word) plus any trailing spaces, then deletes that range.
       editor
         .chain()
         .focus()
@@ -81,7 +77,7 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
           // Find the start of the current word by moving backwards
           let pos = from;
           const text = state.doc.textBetween(0, from);
-          // Match word boundaries (spaces, punctuation, start of line)
+          // Match the last word and trailing spaces: \S+ matches word, \s* matches trailing spaces
           const match = text.match(/\S+\s*$/);
           if (match) {
             pos = from - match[0].length;

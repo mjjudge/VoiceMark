@@ -1,0 +1,117 @@
+# VoiceMark .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.log
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Docker
+.dockerignore
+
+# Documentation Build
+docs/_build/
+site/
+.mkdocs_cache/
+
+# OS Files
+Thumbs.db
+.DS_Store
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Logs
+*.log
+logs/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Test Coverage
+coverage/
+.nyc_output/
+
+# Application Specific
+notes/
+*.md.backup
+.voicemark/
+cache/
+
+# Speech Models (large binary files)
+models/*.bin
+models/*.zip
+models/*.tar.gz
+
+# Compiled Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
+*.app
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z

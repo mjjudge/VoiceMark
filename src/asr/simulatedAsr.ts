@@ -24,10 +24,10 @@ const PARTIAL_INTERVAL_MS = 250; // Emit partial updates every 250ms
 const FINAL_INTERVAL_MIN_MS = 2000; // Finalize after 2-4 seconds
 const FINAL_INTERVAL_MAX_MS = 4000;
 
-let activeTimer: number | null = null;
+let isActive = false;
 let partialTimer: number | null = null;
 let currentPhrase = '';
-let currentPosition = 0;
+let currentWordIndex = 0;
 let eventCallback: ((e: AsrEvent) => void) | null = null;
 
 /**
@@ -38,6 +38,7 @@ export function start(onEvent: (e: AsrEvent) => void): void {
   stop();
 
   eventCallback = onEvent;
+  isActive = true;
 
   // Emit recording status
   onEvent({
@@ -46,47 +47,24 @@ export function start(onEvent: (e: AsrEvent) => void): void {
     message: 'Simulated recording started',
   });
 
-  // Pick a random phrase
-  currentPhrase = SAMPLE_PHRASES[Math.floor(Math.random() * SAMPLE_PHRASES.length)];
-  currentPosition = 0;
-
-  // Start emitting partial results
-  startPartialEmission();
-
-  // Schedule finalization
-  const finalDelay = FINAL_INTERVAL_MIN_MS + 
-    Math.random() * (FINAL_INTERVAL_MAX_MS - FINAL_INTERVAL_MIN_MS);
-  
-  activeTimer = setTimeout(() => {
-    finalizeCurrent();
-    // Reset for next segment
-    currentPhrase = SAMPLE_PHRASES[Math.floor(Math.random() * SAMPLE_PHRASES.length)];
-    currentPosition = 0;
-    startPartialEmission();
-    
-    // Schedule another finalization
-    const nextFinalDelay = FINAL_INTERVAL_MIN_MS + 
-      Math.random() * (FINAL_INTERVAL_MAX_MS - FINAL_INTERVAL_MIN_MS);
-    activeTimer = setTimeout(() => finalizeCurrent(), nextFinalDelay);
-  }, finalDelay);
+  // Start the continuous simulation loop
+  scheduleNextSegment();
 }
 
 /**
  * Stop the simulated ASR engine
  */
 export function stop(): void {
+  isActive = false;
+
   // Clear all timers
-  if (activeTimer) {
-    clearTimeout(activeTimer);
-    activeTimer = null;
-  }
   if (partialTimer) {
     clearInterval(partialTimer);
     partialTimer = null;
   }
 
   // Finalize any remaining text
-  if (eventCallback && currentPosition > 0) {
+  if (eventCallback && currentWordIndex > 0) {
     finalizeCurrent();
   }
 
@@ -101,7 +79,34 @@ export function stop(): void {
 
   eventCallback = null;
   currentPhrase = '';
-  currentPosition = 0;
+  currentWordIndex = 0;
+}
+
+/**
+ * Schedule the next segment to be generated
+ */
+function scheduleNextSegment(): void {
+  if (!isActive) return;
+
+  // Pick a random phrase
+  currentPhrase = SAMPLE_PHRASES[Math.floor(Math.random() * SAMPLE_PHRASES.length)];
+  currentWordIndex = 0;
+
+  // Start emitting partial results
+  startPartialEmission();
+
+  // Schedule finalization
+  const finalDelay = FINAL_INTERVAL_MIN_MS + 
+    Math.random() * (FINAL_INTERVAL_MAX_MS - FINAL_INTERVAL_MIN_MS);
+  
+  setTimeout(() => {
+    if (!isActive) return;
+    finalizeCurrent();
+    // Schedule the next segment if still active
+    if (isActive) {
+      scheduleNextSegment();
+    }
+  }, finalDelay);
 }
 
 /**
@@ -112,33 +117,26 @@ function startPartialEmission(): void {
     clearInterval(partialTimer);
   }
 
+  const words = currentPhrase.split(' ');
+
   partialTimer = setInterval(() => {
-    if (!eventCallback || currentPosition >= currentPhrase.length) {
+    if (!eventCallback || !isActive || currentWordIndex >= words.length) {
+      if (partialTimer) {
+        clearInterval(partialTimer);
+        partialTimer = null;
+      }
       return;
     }
 
-    // Advance position by a few words
-    const words = currentPhrase.split(' ');
-    const wordsSoFar = Math.min(
-      Math.floor((currentPosition / currentPhrase.length) * words.length) + 1,
-      words.length
-    );
-    const partialText = words.slice(0, wordsSoFar).join(' ');
-    currentPosition = partialText.length;
+    // Advance by one word at a time
+    currentWordIndex++;
+    const partialText = words.slice(0, currentWordIndex).join(' ');
 
     eventCallback({
       type: 'asr:partial',
       text: partialText,
       ts: Date.now(),
     });
-
-    // Stop emitting partials once we've shown the full phrase
-    if (currentPosition >= currentPhrase.length) {
-      if (partialTimer) {
-        clearInterval(partialTimer);
-        partialTimer = null;
-      }
-    }
   }, PARTIAL_INTERVAL_MS);
 }
 
@@ -164,6 +162,6 @@ function finalizeCurrent(): void {
     });
   }
 
-  // Reset state
-  currentPosition = 0;
+  // Reset state for next segment
+  currentWordIndex = 0;
 }

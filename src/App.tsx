@@ -5,6 +5,7 @@ import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
+import { applyFinalToEditor } from './asr/applyFinalToEditor';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
 import type { AsrEvent } from './asr/events';
@@ -38,6 +39,9 @@ const App: React.FC = () => {
   const [asrStatus, setAsrStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
   const [partialText, setPartialText] = useState('');
   const [finalSegments, setFinalSegments] = useState<string[]>([]);
+  
+  // Auto-apply final ASR text to editor (default: ON)
+  const [autoApplyFinal, setAutoApplyFinal] = useState(true);
   
   // Confirmation state for destructive commands
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
@@ -91,28 +95,14 @@ const App: React.FC = () => {
         setFinalSegments(prev => [...prev, event.text]);
         setPartialText('');
         
-        // Route the command through voiceCommandToEditorOp
-        const parsed = voiceCommandToEditorOp(event.text, VOICE_CONFIG);
-        
-        if (parsed.kind === 'insert') {
-          // Insert text and add a paragraph break
-          if (dispatch) {
-            dispatch({ type: 'insertText', text: parsed.text });
-            dispatch({ type: 'insertNewParagraph' });
+        // Apply to editor if auto-apply is enabled
+        if (autoApplyFinal) {
+          const result = applyFinalToEditor(event.text, dispatch, VOICE_CONFIG);
+          
+          // Log warning for confirm cases
+          if (result.kind === 'confirm' && result.confirmWarning) {
+            console.warn(result.confirmWarning);
           }
-        } else if (parsed.kind === 'ops') {
-          // Execute operations immediately
-          if (dispatch) {
-            parsed.ops.forEach(op => dispatch(op));
-          }
-        } else if (parsed.kind === 'confirm') {
-          // Set pending confirmation state
-          setPendingConfirm({
-            prompt: parsed.prompt,
-            ops: parsed.ops,
-            sourceText: event.text,
-            ts: event.ts
-          });
         }
         break;
       }
@@ -120,7 +110,7 @@ const App: React.FC = () => {
         console.error('ASR Error:', event.message);
         break;
     }
-  }, [dispatch, lastFinalRoutedTs]);
+  }, [dispatch, lastFinalRoutedTs, autoApplyFinal]);
 
   // Start recording
   const startRecording = useCallback(() => {
@@ -235,6 +225,8 @@ const App: React.FC = () => {
         isRecording={isRecording}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
+        autoApplyFinal={autoApplyFinal}
+        onAutoApplyFinalChange={setAutoApplyFinal}
       />
     </div>
   );

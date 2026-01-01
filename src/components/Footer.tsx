@@ -4,9 +4,17 @@ interface FooterProps {
   isRecording: boolean;
   onStartRecording: () => void;
   onStopRecording: () => void;
+  autoApplyFinal: boolean;
+  onAutoApplyFinalChange: (value: boolean) => void;
 }
 
-const Footer: React.FC<FooterProps> = ({ isRecording, onStartRecording, onStopRecording }) => {
+const Footer: React.FC<FooterProps> = ({ 
+  isRecording, 
+  onStartRecording, 
+  onStopRecording,
+  autoApplyFinal,
+  onAutoApplyFinalChange
+}) => {
   const [autoCommit, setAutoCommit] = useState(true);
   const [commandMode, setCommandMode] = useState(false);
 
@@ -33,6 +41,18 @@ const Footer: React.FC<FooterProps> = ({ isRecording, onStartRecording, onStopRe
       </div>
       
       <div style={styles.centerSection}>
+        <div style={styles.toggleGroup}>
+          <label style={styles.toggleLabel}>
+            <input
+              type="checkbox"
+              checked={autoApplyFinal}
+              onChange={(e) => onAutoApplyFinalChange(e.target.checked)}
+              style={styles.checkbox}
+            />
+            <span style={styles.toggleText}>Auto-Apply Final</span>
+          </label>
+        </div>
+        
         <div style={styles.toggleGroup}>
           <label style={styles.toggleLabel}>
             <input

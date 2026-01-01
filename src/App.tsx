@@ -5,7 +5,7 @@ import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
-import { extractVoiceMarkCommand } from './voice/extractVoiceMarkCommand';
+import { parseInlineVoiceMark } from './voice/parseInlineVoiceMark';
 import { normalizeSpacing } from './asr/textBuffer';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
@@ -118,48 +118,30 @@ const App: React.FC = () => {
         
         // Apply to editor if auto-apply is enabled
         if (autoApplyFinal && dispatch) {
-          // Extract VoiceMark command from the text
-          const extracted = extractVoiceMarkCommand(event.text, VOICE_CONFIG.prefixes);
+          // Parse the text for multiple inline VoiceMark commands
+          const ops = parseInlineVoiceMark(event.text, DEV_COMMAND_CONFIG);
           
-          // Handle the 'before' segment (freeform text)
-          if (extracted.before) {
-            // Use normalizeSpacing to determine proper spacing
-            const spacing = normalizeSpacing(lastAppliedRef.current, extracted.before);
-            const textToInsert = spacing + extracted.before;
-            dispatch({ type: 'insertText', text: textToInsert });
-            // Update last applied text - track the complete inserted text (including spacing)
-            // because future spacing decisions depend on what was actually inserted
-            lastAppliedRef.current = textToInsert;
-          }
-          
-          // Handle the command segment
-          if (extracted.command) {
-            const result = voiceCommandToEditorOp(extracted.command, VOICE_CONFIG);
-            
-            if (result.kind === 'ops') {
-              // Execute operations sequentially
-              result.ops.forEach(op => {
+          // Execute operations sequentially, handling spacing for text insertions
+          ops.forEach((op, index) => {
+            if (op.type === 'insertText') {
+              // Apply spacing normalization to the first text insertion
+              if (index === 0) {
+                const spacing = normalizeSpacing(lastAppliedRef.current, op.text);
+                const textToInsert = spacing + op.text;
+                dispatch({ type: 'insertText', text: textToInsert });
+                lastAppliedRef.current = textToInsert;
+              } else {
                 dispatch(op);
-                // Track what was inserted for spacing purposes
-                if (op.type === 'insertText') {
-                  lastAppliedRef.current = op.text;
-                } else if (op.type === 'insertNewLine') {
-                  lastAppliedRef.current = '\n';
-                } else if (op.type === 'insertNewParagraph') {
-                  lastAppliedRef.current = '\n';
-                }
-              });
-            } else if (result.kind === 'insert') {
-              // Insert text (should not normally happen as command was extracted)
-              dispatch({ type: 'insertText', text: result.text });
-              lastAppliedRef.current = result.text;
-            } else if (result.kind === 'confirm') {
-              // For confirm case: insert raw command text (safety measure)
-              dispatch({ type: 'insertText', text: extracted.command });
-              lastAppliedRef.current = extracted.command;
-              console.warn(`Confirm case skipped for safety: "${result.prompt}". Raw text inserted instead.`);
+                lastAppliedRef.current = op.text;
+              }
+            } else {
+              dispatch(op);
+              // Track what was inserted for spacing purposes
+              if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+                lastAppliedRef.current = '\n';
+              }
             }
-          }
+          });
         }
         break;
       }

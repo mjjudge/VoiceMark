@@ -23,6 +23,7 @@ const SUPPORTED_COMMANDS = [
   // Punctuation
   'comma',
   'full stop',
+  'period',  // en-US alias for full stop
   'question mark',
   'exclamation mark',
   'colon',

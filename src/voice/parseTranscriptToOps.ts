@@ -2,12 +2,12 @@
  * Parse committed transcript text into editor operations.
  * 
  * This function converts transcript text into a linear list of EditorOp commands
- * by splitting the text into chunks and parsing each chunk through voiceCommandToEditorOp.
+ * by splitting the text into chunks and parsing each chunk through parseInlineVoiceMark.
  */
 
 import type { EditorOp } from '../editor/ops';
 import type { ParseContext } from './types';
-import { voiceCommandToEditorOp } from './voiceCommandToEditorOp';
+import { parseInlineVoiceMark } from './parseInlineVoiceMark';
 
 /**
  * Parse transcript text into a list of editor operations.
@@ -16,11 +16,7 @@ import { voiceCommandToEditorOp } from './voiceCommandToEditorOp';
  * - Newline characters (\n)
  * - Sentence terminators: . ? !
  * 
- * Each chunk is parsed using voiceCommandToEditorOp:
- * - If kind: 'ops', the operations are appended to the result
- * - If kind: 'insert', an insertText operation is appended
- * - If kind: 'confirm', the text is logged to console and treated as insertText
- *   (confirmation prompts are not supported in commit mode)
+ * Each chunk is parsed using parseInlineVoiceMark to support multiple inline commands.
  * 
  * @param transcript - The committed transcript text to parse
  * @param context - Optional parsing context (locale, prefixes, etc.)
@@ -37,7 +33,6 @@ export function parseTranscriptToOps(
   const ops: EditorOp[] = [];
   
   // Split by newlines and sentence terminators, keeping the delimiters
-  // We use a regex that captures the delimiter in a group so we can process it
   const chunks = splitIntoChunks(transcript);
   
   for (let i = 0; i < chunks.length; i++) {
@@ -56,23 +51,15 @@ export function parseTranscriptToOps(
     }
     
     const trimmedChunk = chunk.trim();
-    const parsed = voiceCommandToEditorOp(trimmedChunk, context);
     
-    if (parsed.kind === 'ops') {
-      // If ops is empty and confidence is medium (unrecognized command),
-      // don't insert anything (the command was not recognized)
-      if (parsed.ops.length === 0 && parsed.confidence === 'medium') {
-        // Skip unrecognized commands
-        continue;
-      }
-      ops.push(...parsed.ops);
-    } else if (parsed.kind === 'insert') {
+    // Parse the chunk for inline commands using parseInlineVoiceMark
+    const chunkOps = parseInlineVoiceMark(trimmedChunk, context || { prefixes: ['voicemark', 'voice mark'] });
+    
+    // If no operations were generated and the chunk is not empty, insert as text
+    if (chunkOps.length === 0 && trimmedChunk) {
       ops.push({ type: 'insertText', text: trimmedChunk });
-    } else if (parsed.kind === 'confirm') {
-      // In commit mode, we log the confirmation request and treat it as insertText
-      console.log(`[parseTranscriptToOps] Confirmation skipped: "${parsed.prompt}"`);
-      // Insert the original chunk text as fallback
-      ops.push({ type: 'insertText', text: trimmedChunk });
+    } else {
+      ops.push(...chunkOps);
     }
     
     // Add space after terminators to separate from following text

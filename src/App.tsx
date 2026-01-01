@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import TranscriptPanel from './components/TranscriptPanel';
 import Editor from './components/Editor';
@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
 import { extractVoiceMarkCommand } from './voice/extractVoiceMarkCommand';
+import { normalizeSpacing } from './asr/textBuffer';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
 import type { AsrEvent } from './asr/events';
@@ -46,6 +47,9 @@ const App: React.FC = () => {
   // Confirmation state for destructive commands
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [lastFinalRoutedTs, setLastFinalRoutedTs] = useState<number | null>(null);
+  
+  // Track last applied text for spacing normalization
+  const lastAppliedRef = useRef<string>('');
 
   // Wrapper to handle the dispatch function from Editor
   const handleEditorReady = (dispatchFn: (op: EditorOp) => void) => {
@@ -102,7 +106,12 @@ const App: React.FC = () => {
           
           // Handle the 'before' segment (freeform text)
           if (extracted.before) {
-            dispatch({ type: 'insertText', text: extracted.before + ' ' });
+            // Use normalizeSpacing to determine proper spacing
+            const spacing = normalizeSpacing(lastAppliedRef.current, extracted.before);
+            const textToInsert = spacing + extracted.before;
+            dispatch({ type: 'insertText', text: textToInsert });
+            // Update last applied text
+            lastAppliedRef.current = textToInsert;
           }
           
           // Handle the command segment
@@ -111,13 +120,25 @@ const App: React.FC = () => {
             
             if (result.kind === 'ops') {
               // Execute operations sequentially
-              result.ops.forEach(op => dispatch(op));
+              result.ops.forEach(op => {
+                dispatch(op);
+                // Track what was inserted for spacing purposes
+                if (op.type === 'insertText') {
+                  lastAppliedRef.current = op.text;
+                } else if (op.type === 'insertNewLine') {
+                  lastAppliedRef.current = '\n';
+                } else if (op.type === 'insertNewParagraph') {
+                  lastAppliedRef.current = '\n';
+                }
+              });
             } else if (result.kind === 'insert') {
               // Insert text (should not normally happen as command was extracted)
               dispatch({ type: 'insertText', text: result.text });
+              lastAppliedRef.current = result.text;
             } else if (result.kind === 'confirm') {
               // For confirm case: insert raw command text (safety measure)
               dispatch({ type: 'insertText', text: extracted.command });
+              lastAppliedRef.current = extracted.command;
               console.warn(`Confirm case skipped for safety: "${result.prompt}". Raw text inserted instead.`);
             }
           }
@@ -146,6 +167,10 @@ const App: React.FC = () => {
   const handleCommitTranscript = useCallback(() => {
     if (!dispatch) return;
 
+    // If auto-apply is disabled, we need to insert any un-applied finalSegments
+    // If auto-apply is enabled, finalSegments might still have content if there were issues
+    // We'll insert any remaining content either way for safety
+    
     // Collect all segments including any non-empty partial text
     const segments = [...finalSegments];
     if (partialText.trim()) {
@@ -164,6 +189,9 @@ const App: React.FC = () => {
       
       // Add a final paragraph break after all operations
       dispatch({ type: 'insertNewParagraph' });
+      
+      // Update lastAppliedRef to track the newline
+      lastAppliedRef.current = '\n';
     }
     
     // Clear both final segments and partial text

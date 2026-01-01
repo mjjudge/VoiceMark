@@ -94,10 +94,13 @@ const App: React.FC = () => {
       segments.push(partialText);
     }
 
-    const allText = segments.join(' ');
-    if (allText.trim()) {
-      dispatch({ type: 'insertText', text: allText });
-      dispatch({ type: 'insertNewParagraph' });
+    // Insert each segment separately with newlines between them
+    if (segments.length > 0) {
+      segments.forEach((segment) => {
+        dispatch({ type: 'insertText', text: segment });
+        // Add paragraph break after each segment (including the last one)
+        dispatch({ type: 'insertNewParagraph' });
+      });
     }
     
     // Clear both final segments and partial text
@@ -150,7 +153,7 @@ const App: React.FC = () => {
         finalSegments={finalSegments}
         onCommit={handleCommitTranscript}
         onClear={handleClearTranscript}
-        canCommit={!!dispatch && finalSegments.length > 0}
+        canCommit={!!dispatch && (finalSegments.length > 0 || partialText.trim().length > 0)}
       />
       <Editor onReady={handleEditorReady} />
       <Footer 

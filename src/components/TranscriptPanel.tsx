@@ -26,7 +26,7 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   };
 
   const statusText = getStatusText(status);
-  const hasContent = finalSegments.length > 0 || partialText;
+  const hasContent = finalSegments.length > 0 || partialText.trim().length > 0;
 
   return (
     <div style={styles.container}>

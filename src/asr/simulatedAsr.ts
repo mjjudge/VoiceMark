@@ -56,9 +56,7 @@ export function start(onEvent: (e: AsrEvent) => void): void {
  * Stop the simulated ASR engine
  */
 export function stop(): void {
-  isActive = false;
-
-  // Clear all timers
+  // Clear all timers first
   if (partialTimer) {
     clearInterval(partialTimer);
     partialTimer = null;
@@ -68,10 +66,13 @@ export function stop(): void {
     segmentTimer = null;
   }
 
-  // Finalize any remaining text
+  // Finalize any remaining text BEFORE setting isActive to false
   if (eventCallback && currentWordIndex > 0) {
-    finalizeCurrent();
+    finalizeCurrent(true);
   }
+
+  // Now set isActive to false to prevent further events
+  isActive = false;
 
   // Emit idle status
   if (eventCallback) {
@@ -105,8 +106,12 @@ function scheduleNextSegment(): void {
     Math.random() * (FINAL_INTERVAL_MAX_MS - FINAL_INTERVAL_MIN_MS);
   
   segmentTimer = setTimeout(() => {
-    if (!isActive || !eventCallback) return;
+    if (!isActive || !eventCallback) {
+      segmentTimer = null;
+      return;
+    }
     finalizeCurrent();
+    segmentTimer = null;
     // Schedule the next segment if still active
     if (isActive) {
       scheduleNextSegment();
@@ -125,7 +130,7 @@ function startPartialEmission(): void {
   const words = currentPhrase.split(' ');
 
   partialTimer = setInterval(() => {
-    if (!eventCallback || !isActive || currentWordIndex >= words.length) {
+    if (!isActive || !eventCallback || currentWordIndex >= words.length) {
       if (partialTimer) {
         clearInterval(partialTimer);
         partialTimer = null;
@@ -147,9 +152,10 @@ function startPartialEmission(): void {
 
 /**
  * Finalize the current partial text
+ * @param force If true, finalize even when !isActive (used during stop())
  */
-function finalizeCurrent(): void {
-  if (!eventCallback || !isActive) return;
+function finalizeCurrent(force = false): void {
+  if (!eventCallback || (!isActive && !force)) return;
 
   // Stop partial emission
   if (partialTimer) {

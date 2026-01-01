@@ -150,10 +150,11 @@ describe('parseTranscriptToOps', () => {
 
     it('should parse multiple commands', () => {
       const result = parseTranscriptToOps('voicemark comma voicemark full stop');
-      // This will be treated as one chunk since there are no terminators or newlines
-      // The voiceCommandToEditorOp will not recognize this as a valid command
-      // (unrecognized command with medium confidence), so nothing is inserted
-      expect(result).toEqual([]);
+      // With parseInlineVoiceMark, multiple commands in one chunk are now supported
+      expect(result).toEqual([
+        { type: 'insertText', text: ',' },
+        { type: 'insertText', text: '.' }
+      ]);
     });
 
     it('should parse commands separated by terminators', () => {
@@ -202,26 +203,14 @@ describe('parseTranscriptToOps', () => {
   });
 
   describe('confirm handling', () => {
-    it('should handle confirm commands by logging and inserting text', () => {
-      // Mock console.log to verify it's called
-      const originalLog = console.log;
-      const logs: string[] = [];
-      console.log = (...args: unknown[]) => {
-        logs.push(args.join(' '));
-      };
-
+    it('should handle confirm commands by inserting text without confirmation', () => {
+      // With parseInlineVoiceMark, confirm-kind commands are treated as plain text
+      // per the requirement: "Any confirm-kind parsed inline should be treated as an insert"
       const result = parseTranscriptToOps('voicemark delete last sentence');
       
-      // Restore console.log
-      console.log = originalLog;
-
-      // Should have logged the confirmation
-      expect(logs.some(log => log.includes('Confirmation skipped'))).toBe(true);
-      expect(logs.some(log => log.includes('Delete the last sentence?'))).toBe(true);
-
-      // Should insert the text as fallback
+      // Should insert the command phrase as text (no confirmation in inline mode)
       expect(result).toEqual([
-        { type: 'insertText', text: 'voicemark delete last sentence' }
+        { type: 'insertText', text: 'delete last sentence' }
       ]);
     });
   });

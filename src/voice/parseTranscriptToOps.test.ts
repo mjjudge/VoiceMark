@@ -38,6 +38,7 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Hello world' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Another sentence' }
       ]);
     });
@@ -47,6 +48,7 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Are you there' },
         { type: 'insertText', text: '?' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Yes I am' }
       ]);
     });
@@ -56,6 +58,7 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Amazing' },
         { type: 'insertText', text: '!' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Truly wonderful' }
       ]);
     });
@@ -65,8 +68,10 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'First' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Second' },
         { type: 'insertText', text: '?' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Third' },
         { type: 'insertText', text: '!' }
       ]);
@@ -78,6 +83,7 @@ describe('parseTranscriptToOps', () => {
         { type: 'insertText', text: 'What' },
         { type: 'insertText', text: '?' },
         { type: 'insertText', text: '!' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Really' },
         { type: 'insertText', text: '.' }
       ]);
@@ -95,6 +101,7 @@ describe('parseTranscriptToOps', () => {
       const result = parseTranscriptToOps('. Hello world');
       expect(result).toEqual([
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Hello world' }
       ]);
     });
@@ -154,6 +161,7 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: ',' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: '.' }
       ]);
     });
@@ -184,8 +192,10 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Hello' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: ',' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'World' }
       ]);
     });
@@ -222,8 +232,10 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Hello world' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'This is a test' },
         { type: 'insertText', text: '?' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'Yes it is' },
         { type: 'insertText', text: '!' },
         { type: 'insertText', text: '\n' },
@@ -236,8 +248,10 @@ describe('parseTranscriptToOps', () => {
       expect(result).toEqual([
         { type: 'insertText', text: 'Start' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'format', style: 'bold', action: 'make' },
         { type: 'insertText', text: '.' },
+        { type: 'insertText', text: ' ' },
         { type: 'insertText', text: 'End' }
       ]);
     });

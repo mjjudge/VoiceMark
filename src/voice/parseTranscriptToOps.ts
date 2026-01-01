@@ -40,7 +40,10 @@ export function parseTranscriptToOps(
   // We use a regex that captures the delimiter in a group so we can process it
   const chunks = splitIntoChunks(transcript);
   
-  for (const chunk of chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const nextChunk = i + 1 < chunks.length ? chunks[i + 1] : null;
+    
     // Special handling for newlines - always output them
     if (chunk === '\n') {
       ops.push({ type: 'insertText', text: '\n' });
@@ -52,7 +55,11 @@ export function parseTranscriptToOps(
       continue;
     }
     
-    const parsed = voiceCommandToEditorOp(chunk.trim(), context);
+    const trimmedChunk = chunk.trim();
+    const parsed = voiceCommandToEditorOp(trimmedChunk, context);
+    
+    // Helper to check if a chunk is a sentence terminator
+    const isTerminator = (c: string) => c === '.' || c === '?' || c === '!';
     
     if (parsed.kind === 'ops') {
       // If ops is empty and confidence is medium (unrecognized command),
@@ -63,12 +70,18 @@ export function parseTranscriptToOps(
       }
       ops.push(...parsed.ops);
     } else if (parsed.kind === 'insert') {
-      ops.push({ type: 'insertText', text: parsed.text });
+      ops.push({ type: 'insertText', text: trimmedChunk });
     } else if (parsed.kind === 'confirm') {
       // In commit mode, we log the confirmation request and treat it as insertText
       console.log(`[parseTranscriptToOps] Confirmation skipped: "${parsed.prompt}"`);
       // Insert the original chunk text as fallback
-      ops.push({ type: 'insertText', text: chunk.trim() });
+      ops.push({ type: 'insertText', text: trimmedChunk });
+    }
+    
+    // Add space after terminators to separate from following text
+    // Don't add space if: next chunk is newline, next chunk is terminator, or no next chunk
+    if (isTerminator(trimmedChunk) && nextChunk && nextChunk !== '\n' && !isTerminator(nextChunk)) {
+      ops.push({ type: 'insertText', text: ' ' });
     }
   }
   

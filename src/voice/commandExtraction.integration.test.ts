@@ -3,7 +3,7 @@
  * Tests the complete flow from ASR text to editor operations.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { extractVoiceMarkCommand } from './extractVoiceMarkCommand';
 import { voiceCommandToEditorOp } from './voiceCommandToEditorOp';
 import type { EditorOp } from '../editor/ops';

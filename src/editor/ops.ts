@@ -14,5 +14,6 @@ export type EditorOp =
   | { type: 'insertNewLine' }
   | { type: 'insertNewParagraph' }
   | { type: 'deleteLastWord' }
+  | { type: 'deleteLastSentence' }
   | { type: 'undo' }
   | { type: 'redo' };

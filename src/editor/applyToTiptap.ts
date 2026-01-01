@@ -112,28 +112,31 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
         .chain()
         .focus()
         .command(({ tr, state }) => {
-          const { from } = state.selection;
-          const $from = state.selection.$from;
+  const { from } = state.selection;
+  const { $from } = state.selection;
 
-          // Get the start position of the current text block
-          const blockStart = $from.start();
+  // Find nearest textblock depth
+  let depth = $from.depth;
+  while (depth > 0 && !$from.node(depth).isTextblock) {
+    depth--;
+  }
 
-          // Extract text between block start and cursor
-          const blockText = state.doc.textBetween(blockStart, from, '', '');
+  const blockStart = $from.start(depth);
 
-          // Calculate the offset within the block
-          const cursorOffset = blockText.length;
+  // Use stable separators so offsets map predictably
+  const blockText = state.doc.textBetween(blockStart, from, '\n', '\n');
 
-          // Use helper to find where to start deletion
-          const deleteStartOffset = findDeleteStartIndex(blockText, cursorOffset);
+  const cursorOffset = blockText.length;
+  const deleteStartOffset = findDeleteStartIndex(blockText, cursorOffset);
 
-          // Convert block-relative offset to absolute position
-          const deleteFrom = blockStart + deleteStartOffset;
+  const deleteFrom = blockStart + deleteStartOffset;
 
-          // Apply deletion
-          tr.delete(deleteFrom, from);
-          return true;
-        })
+  // Safety clamp (prevents weird ranges)
+  const safeDeleteFrom = Math.max(blockStart, Math.min(deleteFrom, from));
+
+  tr.delete(safeDeleteFrom, from);
+  return true;
+})
         .run();
       break;
     }

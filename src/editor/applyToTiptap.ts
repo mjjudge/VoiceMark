@@ -98,7 +98,33 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
           .run();
       }
       break;
+  
+    case 'deleteLastSentence': {
+      editor
+        .chain()
+        .focus()
+        .command(({ tr, state }) => {
+          const { from } = state.selection;
 
+          // Get text before cursor
+          const text = state.doc.textBetween(0, from, '\n', '\n');
+
+          // Match last sentence ending (. ! ?)
+          const match = text.match(/(.+?[.!?])\s*$/);
+
+          if (!match) {
+            return false;
+          }
+
+          const start = from - match[0].length;
+          tr.delete(start, from);
+
+          return true;
+        })
+         .run();
+      break;
+    }
+    
     case 'undo':
       editor.chain().focus().undo().run();
       break;

@@ -25,7 +25,7 @@ const FINAL_INTERVAL_MIN_MS = 2000; // Finalize after 2-4 seconds
 const FINAL_INTERVAL_MAX_MS = 4000;
 
 let isActive = false;
-let partialTimer: number | null = null;
+let partialTimer: ReturnType<typeof setInterval> | null = null;
 let currentPhrase = '';
 let currentWordIndex = 0;
 let eventCallback: ((e: AsrEvent) => void) | null = null;
@@ -153,11 +153,10 @@ function finalizeCurrent(): void {
   }
 
   // Emit final event with complete text
-  const finalText = currentPhrase;
-  if (finalText) {
+  if (currentPhrase) {
     eventCallback({
       type: 'asr:final',
-      text: finalText,
+      text: currentPhrase,
       ts: Date.now(),
     });
   }

@@ -17,7 +17,15 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   onClear,
   canCommit,
 }) => {
-  const statusText = status === 'idle' ? 'Idle' : status === 'recording' ? 'Recording...' : 'Processing...';
+  const getStatusText = (state: 'idle' | 'recording' | 'processing'): string => {
+    switch (state) {
+      case 'idle': return 'Idle';
+      case 'recording': return 'Recording...';
+      case 'processing': return 'Processing...';
+    }
+  };
+
+  const statusText = getStatusText(status);
   const hasContent = finalSegments.length > 0 || partialText;
 
   return (

@@ -124,7 +124,7 @@ function splitBySentenceTerminators(text: string): string[] {
     if (char === '.' || char === '?' || char === '!') {
       // Add the text before the terminator if any
       if (current.trim()) {
-        parts.push(current);
+        parts.push(current.trim());
       }
       // Add the terminator as a separate chunk
       parts.push(char);
@@ -136,7 +136,7 @@ function splitBySentenceTerminators(text: string): string[] {
   
   // Add any remaining text
   if (current.trim()) {
-    parts.push(current);
+    parts.push(current.trim());
   }
   
   return parts;

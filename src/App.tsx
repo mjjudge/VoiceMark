@@ -5,7 +5,7 @@ import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
-import { applyFinalToEditor } from './asr/applyFinalToEditor';
+import { extractVoiceMarkCommand } from './voice/extractVoiceMarkCommand';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
 import type { AsrEvent } from './asr/events';
@@ -96,12 +96,30 @@ const App: React.FC = () => {
         setPartialText('');
         
         // Apply to editor if auto-apply is enabled
-        if (autoApplyFinal) {
-          const result = applyFinalToEditor(event.text, dispatch, VOICE_CONFIG);
+        if (autoApplyFinal && dispatch) {
+          // Extract VoiceMark command from the text
+          const extracted = extractVoiceMarkCommand(event.text, VOICE_CONFIG.prefixes);
           
-          // Log warning for confirm cases
-          if (result.kind === 'confirm' && result.confirmWarning) {
-            console.warn(result.confirmWarning);
+          // Handle the 'before' segment (freeform text)
+          if (extracted.before) {
+            dispatch({ type: 'insertText', text: extracted.before + ' ' });
+          }
+          
+          // Handle the command segment
+          if (extracted.command) {
+            const result = voiceCommandToEditorOp(extracted.command, VOICE_CONFIG);
+            
+            if (result.kind === 'ops') {
+              // Execute operations sequentially
+              result.ops.forEach(op => dispatch(op));
+            } else if (result.kind === 'insert') {
+              // Insert text (should not normally happen as command was extracted)
+              dispatch({ type: 'insertText', text: result.text });
+            } else if (result.kind === 'confirm') {
+              // For confirm case: insert raw command text (safety measure)
+              dispatch({ type: 'insertText', text: extracted.command });
+              console.warn(`Confirm case skipped for safety: "${result.prompt}". Raw text inserted instead.`);
+            }
           }
         }
         break;

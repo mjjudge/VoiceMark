@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Header from './components/Header';
 import TranscriptPanel from './components/TranscriptPanel';
 import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import type { EditorOp } from './editor/ops';
+import * as simulatedAsr from './asr/simulatedAsr';
+import type { AsrEvent } from './asr/events';
 import './styles/global.css';
 
 // Configuration for voice command parsing in dev mode
@@ -16,6 +18,12 @@ const DEV_COMMAND_CONFIG = {
 const App: React.FC = () => {
   const [dispatch, setDispatch] = useState<((op: EditorOp) => void) | null>(null);
   const [commandInput, setCommandInput] = useState('');
+  
+  // ASR state management
+  const [isRecording, setIsRecording] = useState(false);
+  const [asrStatus, setAsrStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
+  const [partialText, setPartialText] = useState('');
+  const [finalSegments, setFinalSegments] = useState<string[]>([]);
 
   // Wrapper to handle the dispatch function from Editor
   const handleEditorReady = (dispatchFn: (op: EditorOp) => void) => {
@@ -37,6 +45,55 @@ const App: React.FC = () => {
       }
     }
   };
+
+  // ASR event handler
+  const handleAsrEvent = useCallback((event: AsrEvent) => {
+    switch (event.type) {
+      case 'asr:status':
+        setAsrStatus(event.state);
+        break;
+      case 'asr:partial':
+        setPartialText(event.text);
+        break;
+      case 'asr:final':
+        setFinalSegments(prev => [...prev, event.text]);
+        setPartialText('');
+        break;
+      case 'asr:error':
+        console.error('ASR Error:', event.message);
+        break;
+    }
+  }, []);
+
+  // Start recording
+  const startRecording = useCallback(() => {
+    setIsRecording(true);
+    simulatedAsr.start(handleAsrEvent);
+  }, [handleAsrEvent]);
+
+  // Stop recording
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+    simulatedAsr.stop();
+  }, []);
+
+  // Commit transcript to editor
+  const handleCommitTranscript = useCallback(() => {
+    if (!dispatch) return;
+
+    const allText = finalSegments.join(' ');
+    if (allText.trim()) {
+      dispatch({ type: 'insertText', text: allText });
+      dispatch({ type: 'insertNewParagraph' });
+    }
+    setFinalSegments([]);
+  }, [dispatch, finalSegments]);
+
+  // Clear transcript
+  const handleClearTranscript = useCallback(() => {
+    setFinalSegments([]);
+    setPartialText('');
+  }, []);
 
   return (
     <div style={styles.app}>
@@ -71,9 +128,20 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <TranscriptPanel />
+      <TranscriptPanel 
+        status={asrStatus}
+        partialText={partialText}
+        finalSegments={finalSegments}
+        onCommit={handleCommitTranscript}
+        onClear={handleClearTranscript}
+        canCommit={!!dispatch && finalSegments.length > 0}
+      />
       <Editor onReady={handleEditorReady} />
-      <Footer />
+      <Footer 
+        isRecording={isRecording}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
+      />
     </div>
   );
 };

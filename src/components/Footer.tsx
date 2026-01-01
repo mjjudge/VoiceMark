@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
 
-const Footer: React.FC = () => {
-  const [isRecording, setIsRecording] = useState(false);
+interface FooterProps {
+  isRecording: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+}
+
+const Footer: React.FC<FooterProps> = ({ isRecording, onStartRecording, onStopRecording }) => {
   const [autoCommit, setAutoCommit] = useState(true);
   const [commandMode, setCommandMode] = useState(false);
 
   const toggleRecording = () => {
-    setIsRecording(!isRecording);
+    if (isRecording) {
+      onStopRecording();
+    } else {
+      onStartRecording();
+    }
   };
 
   return (
@@ -50,7 +59,9 @@ const Footer: React.FC = () => {
       </div>
       
       <div style={styles.rightSection}>
-        <span style={styles.statusText}>Mic Ready.</span>
+        <span style={styles.statusText}>
+          {isRecording ? 'Recording...' : 'Ready (Simulated ASR)'}
+        </span>
       </div>
     </footer>
   );

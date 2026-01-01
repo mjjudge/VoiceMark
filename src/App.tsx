@@ -15,6 +15,19 @@ const DEV_COMMAND_CONFIG = {
   prefixes: ['voicemark', 'voice mark']
 };
 
+// Voice config for ASR routing (using en-GB defaults)
+const VOICE_CONFIG = {
+  locale: 'en-GB' as const,
+  prefixes: ['voicemark', 'voice mark']
+};
+
+interface PendingConfirm {
+  prompt: string;
+  ops: EditorOp[];
+  sourceText: string;
+  ts: number;
+}
+
 const App: React.FC = () => {
   const [dispatch, setDispatch] = useState<((op: EditorOp) => void) | null>(null);
   const [commandInput, setCommandInput] = useState('');
@@ -24,6 +37,10 @@ const App: React.FC = () => {
   const [asrStatus, setAsrStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
   const [partialText, setPartialText] = useState('');
   const [finalSegments, setFinalSegments] = useState<string[]>([]);
+  
+  // Confirmation state for destructive commands
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [lastFinalRoutedTs, setLastFinalRoutedTs] = useState<number | null>(null);
 
   // Wrapper to handle the dispatch function from Editor
   const handleEditorReady = (dispatchFn: (op: EditorOp) => void) => {
@@ -62,15 +79,47 @@ const App: React.FC = () => {
       case 'asr:partial':
         setPartialText(event.text);
         break;
-      case 'asr:final':
+      case 'asr:final': {
+        // Prevent double-processing of the same final event
+        if (lastFinalRoutedTs === event.ts) {
+          return;
+        }
+        setLastFinalRoutedTs(event.ts);
+        
+        // Append to final segments for display
         setFinalSegments(prev => [...prev, event.text]);
         setPartialText('');
+        
+        // Route the command through voiceCommandToEditorOp
+        const parsed = voiceCommandToEditorOp(event.text, VOICE_CONFIG);
+        
+        if (parsed.kind === 'insert') {
+          // Insert text and add a paragraph break
+          if (dispatch) {
+            dispatch({ type: 'insertText', text: parsed.text });
+            dispatch({ type: 'insertNewParagraph' });
+          }
+        } else if (parsed.kind === 'ops') {
+          // Execute operations immediately
+          if (dispatch) {
+            parsed.ops.forEach(op => dispatch(op));
+          }
+        } else if (parsed.kind === 'confirm') {
+          // Set pending confirmation state
+          setPendingConfirm({
+            prompt: parsed.prompt,
+            ops: parsed.ops,
+            sourceText: event.text,
+            ts: event.ts
+          });
+        }
         break;
+      }
       case 'asr:error':
         console.error('ASR Error:', event.message);
         break;
     }
-  }, []);
+  }, [dispatch, lastFinalRoutedTs]);
 
   // Start recording
   const startRecording = useCallback(() => {
@@ -114,6 +163,23 @@ const App: React.FC = () => {
     setPartialText('');
   }, []);
 
+  // Handle confirmation acceptance
+  const handleConfirmAccept = useCallback(() => {
+    if (!dispatch || !pendingConfirm) return;
+    
+    // Execute the pending operations
+    pendingConfirm.ops.forEach(op => dispatch(op));
+    
+    // Clear pending state
+    setPendingConfirm(null);
+  }, [dispatch, pendingConfirm]);
+
+  // Handle confirmation rejection
+  const handleConfirmReject = useCallback(() => {
+    // Just clear the pending state
+    setPendingConfirm(null);
+  }, []);
+
   return (
     <div style={styles.app}>
       <Header />
@@ -154,6 +220,9 @@ const App: React.FC = () => {
         onCommit={handleCommitTranscript}
         onClear={handleClearTranscript}
         canCommit={!!dispatch && (finalSegments.length > 0 || partialText.trim().length > 0)}
+        pendingConfirm={pendingConfirm}
+        onConfirmAccept={handleConfirmAccept}
+        onConfirmReject={handleConfirmReject}
       />
       <Editor onReady={handleEditorReady} />
       <Footer 

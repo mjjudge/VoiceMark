@@ -1,5 +1,11 @@
 import React from 'react';
 
+interface PendingConfirm {
+  prompt: string;
+  sourceText: string;
+  ts: number;
+}
+
 interface TranscriptPanelProps {
   status: 'idle' | 'recording' | 'processing';
   partialText: string;
@@ -7,6 +13,9 @@ interface TranscriptPanelProps {
   onCommit: () => void;
   onClear: () => void;
   canCommit: boolean;
+  pendingConfirm?: PendingConfirm | null;
+  onConfirmAccept?: () => void;
+  onConfirmReject?: () => void;
 }
 
 const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
@@ -16,6 +25,9 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   onCommit,
   onClear,
   canCommit,
+  pendingConfirm,
+  onConfirmAccept,
+  onConfirmReject,
 }) => {
   const getStatusText = (state: 'idle' | 'recording' | 'processing'): string => {
     switch (state) {
@@ -63,6 +75,33 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
         </div>
       </div>
       <div style={styles.content}>
+        {pendingConfirm && (
+          <div style={styles.confirmContainer}>
+            <div style={styles.confirmPrompt}>{pendingConfirm.prompt}</div>
+            <div style={styles.confirmActions}>
+              <button
+                type="button"
+                onClick={onConfirmAccept}
+                style={{
+                  ...styles.button,
+                  ...styles.acceptButton,
+                }}
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmReject}
+                style={{
+                  ...styles.button,
+                  ...styles.rejectButton,
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        )}
         {finalSegments.length > 0 && (
           <div style={styles.finalText}>
             {finalSegments.join(' ')}
@@ -76,7 +115,7 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
             {partialText}
           </div>
         )}
-        {!hasContent && (
+        {!hasContent && !pendingConfirm && (
           <div style={styles.placeholder}>Ready.</div>
         )}
       </div>
@@ -155,6 +194,31 @@ const styles = {
   placeholder: {
     color: '#858585',
     fontStyle: 'italic',
+  } as React.CSSProperties,
+  confirmContainer: {
+    padding: '12px',
+    backgroundColor: '#3c3c3c',
+    border: '1px solid #5a5a5a',
+    borderRadius: '4px',
+    marginBottom: '12px',
+  } as React.CSSProperties,
+  confirmPrompt: {
+    color: '#d4d4d4',
+    fontSize: '14px',
+    marginBottom: '8px',
+    fontWeight: 500,
+  } as React.CSSProperties,
+  confirmActions: {
+    display: 'flex',
+    gap: '8px',
+  } as React.CSSProperties,
+  acceptButton: {
+    backgroundColor: '#0e639c',
+    color: '#ffffff',
+  } as React.CSSProperties,
+  rejectButton: {
+    backgroundColor: '#5a5a5a',
+    color: '#d4d4d4',
   } as React.CSSProperties,
 };
 

@@ -239,10 +239,9 @@ function parseCommandPhrase(
     const textSlice = textLower.substring(pos, endPos);
     if (textSlice === commandLower) {
       // Check if this is followed by a word boundary
-      const afterChar = endPos < text.length ? text[endPos] : ' ';
-      const isWordBoundaryAfter = /\s/.test(afterChar) || endPos === text.length;
+      const afterChar = endPos < text.length ? text[endPos] : undefined;
       
-      if (isWordBoundaryAfter) {
+      if (isWordBoundary(afterChar) || endPos === text.length) {
         // Found a match
         return {
           commandPhrase: command, // Use the normalized command phrase

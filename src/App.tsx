@@ -121,15 +121,19 @@ const App: React.FC = () => {
           // Parse the text for multiple inline VoiceMark commands
           const ops = parseInlineVoiceMark(event.text, DEV_COMMAND_CONFIG);
           
+          // Track whether we've applied spacing to the first text insertion
+          let firstTextHandled = false;
+          
           // Execute operations sequentially, handling spacing for text insertions
-          ops.forEach((op, index) => {
+          ops.forEach((op) => {
             if (op.type === 'insertText') {
-              // Apply spacing normalization to the first text insertion
-              if (index === 0) {
+              // Apply spacing normalization to the first text insertion only
+              if (!firstTextHandled) {
                 const spacing = normalizeSpacing(lastAppliedRef.current, op.text);
                 const textToInsert = spacing + op.text;
                 dispatch({ type: 'insertText', text: textToInsert });
                 lastAppliedRef.current = textToInsert;
+                firstTextHandled = true;
               } else {
                 dispatch(op);
                 lastAppliedRef.current = op.text;

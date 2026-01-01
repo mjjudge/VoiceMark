@@ -83,8 +83,9 @@ export function parseInlineVoiceMark(
     if (result === null) {
       // No more commands found - insert remaining text
       const remaining = text.substring(currentPos);
-      if (remaining.trimEnd()) {
-        ops.push({ type: 'insertText', text: remaining.trimEnd() });
+      const trimmed = remaining.trimEnd();
+      if (trimmed) {
+        ops.push({ type: 'insertText', text: trimmed });
       }
       break;
     }
@@ -114,6 +115,7 @@ export function parseInlineVoiceMark(
         ops.push({ type: 'insertText', text: parsed.text });
       } else if (parsed.kind === 'confirm') {
         // Treat confirm-kind as insert of the original text chunk
+        // Per requirement: "Any confirm-kind parsed inline should be treated as an insert of the original chunk"
         ops.push({ type: 'insertText', text: commandResult.commandPhrase });
       }
       
@@ -127,6 +129,13 @@ export function parseInlineVoiceMark(
   }
   
   return ops;
+}
+
+/**
+ * Check if a character represents a word boundary.
+ */
+function isWordBoundary(char: string | undefined): boolean {
+  return char === undefined || /\s/.test(char);
 }
 
 /**
@@ -156,13 +165,13 @@ function findNextPrefix(
       if (idx === -1) break;
       
       // Check if this is a whole-word match
-      const beforeIdx = idx > 0 ? text[idx - 1] : ' ';
+      const beforeIdx = idx > 0 ? text[idx - 1] : undefined;
       const afterIdx = idx + prefixLower.length < text.length 
         ? text[idx + prefixLower.length] 
-        : ' ';
+        : undefined;
       
-      const isWordBoundaryBefore = /\s/.test(beforeIdx) || idx === 0;
-      const isWordBoundaryAfter = /\s/.test(afterIdx) || idx + prefixLower.length === text.length;
+      const isWordBoundaryBefore = isWordBoundary(beforeIdx) || idx === 0;
+      const isWordBoundaryAfter = isWordBoundary(afterIdx) || idx + prefixLower.length === text.length;
       
       if (isWordBoundaryBefore && isWordBoundaryAfter) {
         // Found a valid match

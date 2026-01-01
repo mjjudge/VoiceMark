@@ -10,6 +10,13 @@ import type { ParseContext } from './types';
 import { parseInlineVoiceMark } from './parseInlineVoiceMark';
 
 /**
+ * Default parsing context for parseTranscriptToOps
+ */
+const DEFAULT_PARSE_CONTEXT: ParseContext = {
+  prefixes: ['voicemark', 'voice mark']
+};
+
+/**
  * Parse transcript text into a list of editor operations.
  * 
  * The transcript is split into chunks based on:
@@ -53,7 +60,7 @@ export function parseTranscriptToOps(
     const trimmedChunk = chunk.trim();
     
     // Parse the chunk for inline commands using parseInlineVoiceMark
-    const chunkOps = parseInlineVoiceMark(trimmedChunk, context || { prefixes: ['voicemark', 'voice mark'] });
+    const chunkOps = parseInlineVoiceMark(trimmedChunk, context || DEFAULT_PARSE_CONTEXT);
     
     // If no operations were generated and the chunk is not empty, insert as text
     if (chunkOps.length === 0 && trimmedChunk) {

@@ -26,6 +26,7 @@ const FINAL_INTERVAL_MAX_MS = 4000;
 
 let isActive = false;
 let partialTimer: ReturnType<typeof setInterval> | null = null;
+let segmentTimer: ReturnType<typeof setTimeout> | null = null;
 let currentPhrase = '';
 let currentWordIndex = 0;
 let eventCallback: ((e: AsrEvent) => void) | null = null;
@@ -61,6 +62,10 @@ export function stop(): void {
   if (partialTimer) {
     clearInterval(partialTimer);
     partialTimer = null;
+  }
+  if (segmentTimer) {
+    clearTimeout(segmentTimer);
+    segmentTimer = null;
   }
 
   // Finalize any remaining text
@@ -99,8 +104,8 @@ function scheduleNextSegment(): void {
   const finalDelay = FINAL_INTERVAL_MIN_MS + 
     Math.random() * (FINAL_INTERVAL_MAX_MS - FINAL_INTERVAL_MIN_MS);
   
-  setTimeout(() => {
-    if (!isActive) return;
+  segmentTimer = setTimeout(() => {
+    if (!isActive || !eventCallback) return;
     finalizeCurrent();
     // Schedule the next segment if still active
     if (isActive) {
@@ -144,7 +149,7 @@ function startPartialEmission(): void {
  * Finalize the current partial text
  */
 function finalizeCurrent(): void {
-  if (!eventCallback) return;
+  if (!eventCallback || !isActive) return;
 
   // Stop partial emission
   if (partialTimer) {

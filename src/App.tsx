@@ -3,7 +3,6 @@ import Header from './components/Header';
 import TranscriptPanel from './components/TranscriptPanel';
 import Editor from './components/Editor';
 import Footer from './components/Footer';
-import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
 import { parseInlineVoiceMark } from './voice/parseInlineVoiceMark';
 import { normalizeSpacing } from './asr/textBuffer';
@@ -34,6 +33,7 @@ interface PendingConfirm {
 const App: React.FC = () => {
   const [dispatch, setDispatch] = useState<((op: EditorOp) => void) | null>(null);
   const [commandInput, setCommandInput] = useState('');
+  const [debugOps, setDebugOps] = useState<EditorOp[]>([]);
   
   // ASR state management
   const [isRecording, setIsRecording] = useState(false);
@@ -66,34 +66,24 @@ const App: React.FC = () => {
   const handleRunCommand = () => {
     if (!dispatch || !commandInput.trim()) return;
 
-    const result = voiceCommandToEditorOp(commandInput, DEV_COMMAND_CONFIG);
-
-    if (result.kind === 'insert') {
-      dispatch({ type: 'insertText', text: result.text });
-      lastAppliedRef.current = result.text;
-    } else if (result.kind === 'ops') {
-      result.ops.forEach(op => {
+    const ops = parseInlineVoiceMark(commandInput, DEV_COMMAND_CONFIG);
+    setDebugOps(ops);
+    
+    ops.forEach(op => {
+      // Skip confirmation for deleteLastSentence in dev runner (for testing)
+      if (op.type === 'deleteLastSentence') {
         dispatch(op);
-        // Track what was inserted for spacing purposes
-        if (op.type === 'insertText') {
-          lastAppliedRef.current = op.text;
-        } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
-          lastAppliedRef.current = '\n';
-        }
-      });
-    } else if (result.kind === 'confirm') {
-      if (window.confirm(result.prompt)) {
-        result.ops.forEach(op => {
-          dispatch(op);
-          // Track what was inserted for spacing purposes
-          if (op.type === 'insertText') {
-            lastAppliedRef.current = op.text;
-          } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
-            lastAppliedRef.current = '\n';
-          }
-        });
+      } else {
+        dispatch(op);
       }
-    }
+      
+      // Track what was inserted for spacing purposes
+      if (op.type === 'insertText') {
+        lastAppliedRef.current = op.text;
+      } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+        lastAppliedRef.current = '\n';
+      }
+    });
   };
 
   // ASR event handler
@@ -273,6 +263,11 @@ const App: React.FC = () => {
               Run
             </button>
           </div>
+          {debugOps.length > 0 && (
+            <pre style={styles.devDebug}>
+              {JSON.stringify(debugOps, null, 2)}
+            </pre>
+          )}
         </div>
       )}
       <TranscriptPanel 
@@ -346,6 +341,18 @@ const styles = {
     backgroundColor: '#3c3c3c',
     color: '#858585',
     cursor: 'not-allowed',
+  } as React.CSSProperties,
+  devDebug: {
+    marginTop: '8px',
+    padding: '8px',
+    backgroundColor: '#2d2d2d',
+    color: '#d4d4d4',
+    fontSize: '11px',
+    fontFamily: 'monospace',
+    borderRadius: '4px',
+    border: '1px solid #3e3e42',
+    overflow: 'auto',
+    maxHeight: '200px',
   } as React.CSSProperties,
 };
 

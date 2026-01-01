@@ -112,31 +112,31 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
         .chain()
         .focus()
         .command(({ tr, state }) => {
-  const { from } = state.selection;
-  const { $from } = state.selection;
+          const { from } = state.selection;
+          const { $from } = state.selection;
 
-  // Find nearest textblock depth
-  let depth = $from.depth;
-  while (depth > 0 && !$from.node(depth).isTextblock) {
-    depth--;
-  }
+          // Find nearest textblock depth
+          let depth = $from.depth;
+          while (depth > 0 && !$from.node(depth).isTextblock) {
+            depth--;
+          }
 
-  const blockStart = $from.start(depth);
+          const blockStart = $from.start(depth);
 
-  // Use stable separators so offsets map predictably
-  const blockText = state.doc.textBetween(blockStart, from, '\n', '\n');
+          // Use stable separators so offsets map predictably
+          const blockText = state.doc.textBetween(blockStart, from, '\n', '\n');
 
-  const cursorOffset = blockText.length;
-  const deleteStartOffset = findDeleteStartIndex(blockText, cursorOffset);
+          const cursorOffset = blockText.length;
+          const deleteStartOffset = findDeleteStartIndex(blockText, cursorOffset);
 
-  const deleteFrom = blockStart + deleteStartOffset;
+          const deleteFrom = blockStart + deleteStartOffset;
 
-  // Safety clamp (prevents weird ranges)
-  const safeDeleteFrom = Math.max(blockStart, Math.min(deleteFrom, from));
+          // Safety clamp (prevents weird ranges)
+          const safeDeleteFrom = Math.max(blockStart, Math.min(deleteFrom, from));
 
-  tr.delete(safeDeleteFrom, from);
-  return true;
-})
+          tr.delete(safeDeleteFrom, from);
+          return true;
+        })
         .run();
       break;
     }

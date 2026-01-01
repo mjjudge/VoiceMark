@@ -4,6 +4,7 @@ import TranscriptPanel from './components/TranscriptPanel';
 import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
+import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
 import type { AsrEvent } from './asr/events';
@@ -143,13 +144,18 @@ const App: React.FC = () => {
       segments.push(partialText);
     }
 
-    // Insert each segment separately with newlines between them
-    if (segments.length > 0) {
-      segments.forEach((segment) => {
-        dispatch({ type: 'insertText', text: segment });
-        // Add paragraph break after each segment (including the last one)
-        dispatch({ type: 'insertNewParagraph' });
-      });
+    // Join all segments with newlines to create the full transcript
+    const fullTranscript = segments.join('\n');
+    
+    // Parse the transcript into editor operations
+    if (fullTranscript) {
+      const ops = parseTranscriptToOps(fullTranscript, VOICE_CONFIG);
+      
+      // Execute each operation
+      ops.forEach(op => dispatch(op));
+      
+      // Add a final paragraph break after all operations
+      dispatch({ type: 'insertNewParagraph' });
     }
     
     // Clear both final segments and partial text

@@ -16,7 +16,9 @@ const SAMPLE_PHRASES = [
   'Testing voice recognition capabilities',
   'Make this text bold and underlined',
   'Insert new paragraph here',
-  'Delete the last sentence please',
+  'voicemark delete last sentence',
+  'voicemark comma',
+  'Hello this is a test',
 ];
 
 // Simulation parameters

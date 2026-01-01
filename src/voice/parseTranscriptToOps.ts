@@ -58,9 +58,6 @@ export function parseTranscriptToOps(
     const trimmedChunk = chunk.trim();
     const parsed = voiceCommandToEditorOp(trimmedChunk, context);
     
-    // Helper to check if a chunk is a sentence terminator
-    const isTerminator = (c: string) => c === '.' || c === '?' || c === '!';
-    
     if (parsed.kind === 'ops') {
       // If ops is empty and confidence is medium (unrecognized command),
       // don't insert anything (the command was not recognized)
@@ -79,13 +76,56 @@ export function parseTranscriptToOps(
     }
     
     // Add space after terminators to separate from following text
-    // Don't add space if: next chunk is newline, next chunk is terminator, or no next chunk
-    if (isTerminator(trimmedChunk) && nextChunk && nextChunk !== '\n' && !isTerminator(nextChunk)) {
+    if (shouldInsertSpaceAfter(trimmedChunk, nextChunk)) {
       ops.push({ type: 'insertText', text: ' ' });
     }
   }
   
   return ops;
+}
+
+/**
+ * Check if a chunk is a sentence terminator.
+ * 
+ * @param chunk - The chunk to check
+ * @returns True if the chunk is a terminator (. ? !)
+ */
+function isTerminator(chunk: string): boolean {
+  return chunk === '.' || chunk === '?' || chunk === '!';
+}
+
+/**
+ * Determine if a space should be inserted after the current chunk.
+ * 
+ * Spaces are added after terminators to prevent text from merging,
+ * but not before newlines or other terminators.
+ * 
+ * @param currentChunk - The current chunk (trimmed)
+ * @param nextChunk - The next chunk (may be untrimmed), or null if none
+ * @returns True if a space should be inserted
+ */
+function shouldInsertSpaceAfter(currentChunk: string, nextChunk: string | null): boolean {
+  // Only insert space after terminators
+  if (!isTerminator(currentChunk)) {
+    return false;
+  }
+  
+  // Don't insert space if there's no next chunk
+  if (!nextChunk) {
+    return false;
+  }
+  
+  // Don't insert space before newlines
+  if (nextChunk === '\n') {
+    return false;
+  }
+  
+  // Don't insert space before another terminator
+  if (isTerminator(nextChunk)) {
+    return false;
+  }
+  
+  return true;
 }
 
 /**

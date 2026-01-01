@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import TranscriptPanel from './components/TranscriptPanel';
 import Editor from './components/Editor';
@@ -29,6 +29,13 @@ const App: React.FC = () => {
   const handleEditorReady = (dispatchFn: (op: EditorOp) => void) => {
     setDispatch(() => dispatchFn);
   };
+
+  // Cleanup on unmount: stop ASR to clear timers
+  useEffect(() => {
+    return () => {
+      simulatedAsr.stop();
+    };
+  }, []);
 
   const handleRunCommand = () => {
     if (!dispatch || !commandInput.trim()) return;
@@ -81,13 +88,22 @@ const App: React.FC = () => {
   const handleCommitTranscript = useCallback(() => {
     if (!dispatch) return;
 
-    const allText = finalSegments.join(' ');
+    // Collect all segments including any non-empty partial text
+    const segments = [...finalSegments];
+    if (partialText.trim()) {
+      segments.push(partialText);
+    }
+
+    const allText = segments.join(' ');
     if (allText.trim()) {
       dispatch({ type: 'insertText', text: allText });
       dispatch({ type: 'insertNewParagraph' });
     }
+    
+    // Clear both final segments and partial text
     setFinalSegments([]);
-  }, [dispatch, finalSegments]);
+    setPartialText('');
+  }, [dispatch, finalSegments, partialText]);
 
   // Clear transcript
   const handleClearTranscript = useCallback(() => {

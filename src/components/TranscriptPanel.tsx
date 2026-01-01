@@ -69,7 +69,10 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
           </div>
         )}
         {partialText && (
-          <div style={styles.partialText}>
+          <div style={{
+            ...styles.partialText,
+            ...(finalSegments.length > 0 ? styles.partialTextSpacing : {}),
+          }}>
             {partialText}
           </div>
         )}
@@ -145,6 +148,9 @@ const styles = {
   partialText: {
     color: '#4ec9b0',
     fontStyle: 'italic',
+  } as React.CSSProperties,
+  partialTextSpacing: {
+    marginTop: '8px',
   } as React.CSSProperties,
   placeholder: {
     color: '#858585',

@@ -13,7 +13,7 @@ import type { ParseContext, CommandParse } from './types';
  * Default locale is en-GB, with support for en-US alias "period" for "full stop".
  * 
  * @param input - The voice command text
- * @param context - Optional parsing context (locale, etc.)
+ * @param context - Optional parsing context (locale, prefixes, etc.)
  * @returns A CommandParse result indicating the operation or text to insert
  */
 export function voiceCommandToEditorOp(
@@ -33,13 +33,18 @@ export function voiceCommandToEditorOp(
     normalized = normalized.replace(/\bperiod\b/g, 'full stop');
   }
   
-  // Check for command prefix: "voicemark" or "voice mark"
-  const prefixes = ['voicemark ', 'voice mark '];
+  // Use custom prefixes or default to ['voicemark', 'voice mark']
+  const prefixes = context?.prefixes || ['voicemark', 'voice mark'];
   let commandText: string | null = null;
   
+  // Check for command prefix - accept exact match or prefix + space
   for (const prefix of prefixes) {
-    if (normalized.indexOf(prefix) === 0) {
-      commandText = normalized.substring(prefix.length).trim();
+    if (normalized === prefix) {
+      // Exact prefix match with no command - return no-op
+      return { kind: 'ops', ops: [] };
+    }
+    if (normalized.startsWith(prefix + ' ')) {
+      commandText = normalized.substring(prefix.length + 1).trim();
       break;
     }
   }
@@ -59,28 +64,37 @@ export function voiceCommandToEditorOp(
  */
 function parseCommand(command: string): CommandParse {
   // Format commands: make/unmake/toggle bold/italic/underline
-  const formatMatch = command.match(/^(make|unmake|toggle)\s+(bold|italic|underline)$/);
+  // Support aliases: italics -> italic, underlined -> underline
+  const formatMatch = command.match(/^(make|unmake|toggle)\s+(bold|italic|italics|underline|underlined)$/);
   if (formatMatch) {
     const action = formatMatch[1] as FormatAction;
-    const style = formatMatch[2] as FormatStyle;
+    let style = formatMatch[2];
+    
+    // Handle aliases
+    if (style === 'italics') style = 'italic';
+    if (style === 'underlined') style = 'underline';
+    
     return {
-      kind: 'op',
-      op: { type: 'format', style, action }
+      kind: 'ops',
+      ops: [{ type: 'format', style: style as FormatStyle, action }],
+      confidence: 'high'
     };
   }
   
   // Delete commands
   if (command === 'delete last word') {
     return {
-      kind: 'op',
-      op: { type: 'deleteLastWord' }
+      kind: 'ops',
+      ops: [{ type: 'deleteLastWord' }],
+      confidence: 'high'
     };
   }
   
   if (command === 'delete last sentence') {
     return {
       kind: 'confirm',
-      op: { type: 'deleteLastSentence' }
+      ops: [{ type: 'deleteLastSentence' }],
+      prompt: 'Delete the last sentence?'
     };
   }
   
@@ -92,34 +106,39 @@ function parseCommand(command: string): CommandParse {
     'exclamation mark': '!',
     'colon': ':',
     'semicolon': ';',
-    'dash': '—'
+    'dash': '-'
   };
   
   if (command in punctuationMap) {
     return {
-      kind: 'op',
-      op: { type: 'insertText', text: punctuationMap[command] }
+      kind: 'ops',
+      ops: [{ type: 'insertText', text: punctuationMap[command] }],
+      confidence: 'high'
     };
   }
   
   // Newline commands
   if (command === 'new line') {
     return {
-      kind: 'op',
-      op: { type: 'insertNewLine' }
+      kind: 'ops',
+      ops: [{ type: 'insertNewLine' }],
+      confidence: 'high'
     };
   }
   
   if (command === 'new paragraph') {
     return {
-      kind: 'op',
-      op: { type: 'insertNewParagraph' }
+      kind: 'ops',
+      ops: [{ type: 'insertNewParagraph' }],
+      confidence: 'high'
     };
   }
   
-  // Unrecognized command - treat as text to insert
+  // Unrecognized command - return empty ops with medium confidence
+  // (do not insert 'voicemark ...' as text)
   return {
-    kind: 'insert',
-    text: `voicemark ${command}`
+    kind: 'ops',
+    ops: [],
+    confidence: 'medium'
   };
 }

@@ -6,7 +6,7 @@
  */
 
 export type FormatStyle = 'bold' | 'italic' | 'underline';
-export type FormatAction = 'toggle' | 'set' | 'unset';
+export type FormatAction = 'toggle' | 'make' | 'unmake';
 
 export type EditorOp =
   | { type: 'format'; style: FormatStyle; action: FormatAction }

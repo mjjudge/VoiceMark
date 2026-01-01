@@ -25,28 +25,40 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
         case 'bold':
           if (action === 'toggle') {
             chain.toggleBold().run();
-          } else if (action === 'set') {
-            chain.setBold().run();
+          } else if (action === 'make') {
+            if (!editor.isActive('bold')) {
+              chain.toggleBold().run();
+            }
           } else {
-            chain.unsetBold().run();
+            if (editor.isActive('bold')) {
+              chain.toggleBold().run();
+            }
           }
           break;
         case 'italic':
           if (action === 'toggle') {
             chain.toggleItalic().run();
-          } else if (action === 'set') {
-            chain.setItalic().run();
+          } else if (action === 'make') {
+            if (!editor.isActive('italic')) {
+              chain.toggleItalic().run();
+            }
           } else {
-            chain.unsetItalic().run();
+            if (editor.isActive('italic')) {
+              chain.toggleItalic().run();
+            }
           }
           break;
         case 'underline':
           if (action === 'toggle') {
             chain.toggleUnderline().run();
-          } else if (action === 'set') {
-            chain.setUnderline().run();
+          } else if (action === 'make') {
+            if (!editor.isActive('underline')) {
+              chain.toggleUnderline().run();
+            }
           } else {
-            chain.unsetUnderline().run();
+            if (editor.isActive('underline')) {
+              chain.toggleUnderline().run();
+            }
           }
           break;
       }
@@ -66,26 +78,25 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
       break;
 
     case 'deleteLastWord':
-      // Delete the last word before the cursor, including any trailing whitespace.
-      // Implementation: Uses a regex pattern to find the last sequence of non-whitespace
-      // characters (the word) plus any trailing spaces, then deletes that range.
-      editor
-        .chain()
-        .focus()
-        .command(({ tr, state }) => {
-          const { from } = state.selection;
-          // Find the start of the current word by moving backwards
-          let pos = from;
-          const text = state.doc.textBetween(0, from);
-          // Match the last word and trailing spaces: \S+ matches word, \s* matches trailing spaces
-          const match = text.match(/\S+\s*$/);
-          if (match) {
-            pos = from - match[0].length;
-          }
-          tr.delete(pos, from);
-          return true;
-        })
-        .run();
+      // If there's a selection, delete it; otherwise delete the last word
+      if (!editor.state.selection.empty) {
+        editor.chain().focus().deleteSelection().run();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .command(({ tr, state }) => {
+            const { from } = state.selection;
+            const text = state.doc.textBetween(0, from);
+            const match = text.match(/\S+\s*$/);
+            if (match) {
+              const pos = from - match[0].length;
+              tr.delete(pos, from);
+            }
+            return true;
+          })
+          .run();
+      }
       break;
 
     case 'undo':

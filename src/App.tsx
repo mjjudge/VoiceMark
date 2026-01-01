@@ -7,6 +7,12 @@ import { voiceCommandToEditorOp } from './voice/voiceCommandToEditorOp';
 import type { EditorOp } from './editor/ops';
 import './styles/global.css';
 
+// Configuration for voice command parsing in dev mode
+const DEV_COMMAND_CONFIG = {
+  locale: 'en-GB' as const,
+  prefixes: ['voicemark', 'voice mark']
+};
+
 const App: React.FC = () => {
   const [dispatch, setDispatch] = useState<((op: EditorOp) => void) | null>(null);
   const [commandInput, setCommandInput] = useState('');
@@ -19,10 +25,7 @@ const App: React.FC = () => {
   const handleRunCommand = () => {
     if (!dispatch || !commandInput.trim()) return;
 
-    const result = voiceCommandToEditorOp(commandInput, {
-      locale: 'en-GB',
-      prefixes: ['voicemark', 'voice mark']
-    });
+    const result = voiceCommandToEditorOp(commandInput, DEV_COMMAND_CONFIG);
 
     if (result.kind === 'insert') {
       dispatch({ type: 'insertText', text: result.text });

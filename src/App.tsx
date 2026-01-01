@@ -127,7 +127,8 @@ const App: React.FC = () => {
             const spacing = normalizeSpacing(lastAppliedRef.current, extracted.before);
             const textToInsert = spacing + extracted.before;
             dispatch({ type: 'insertText', text: textToInsert });
-            // Update last applied text
+            // Update last applied text - track the complete inserted text (including spacing)
+            // because future spacing decisions depend on what was actually inserted
             lastAppliedRef.current = textToInsert;
           }
           

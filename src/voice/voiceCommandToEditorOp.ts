@@ -120,6 +120,6 @@ function parseCommand(command: string): CommandParse {
   // Unrecognized command - treat as text to insert
   return {
     kind: 'insert',
-    text: 'voicemark ' + command
+    text: `voicemark ${command}`
   };
 }

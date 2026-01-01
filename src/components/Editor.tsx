@@ -34,7 +34,11 @@ function exportMarkdown(html: string): string {
   return markdown;
 }
 
-const Editor: React.FC = () => {
+interface EditorProps {
+  onReady?: (dispatch: (op: EditorOp) => void) => void;
+}
+
+const Editor: React.FC<EditorProps> = ({ onReady }) => {
   const [showDebug, setShowDebug] = useState(false);
   const [markdownOutput, setMarkdownOutput] = useState('');
 
@@ -68,6 +72,13 @@ const Editor: React.FC = () => {
   const dispatch = useCallback((op: EditorOp) => {
     applyEditorOp(editor, op);
   }, [editor]);
+
+  // Notify parent when dispatch is ready
+  useEffect(() => {
+    if (editor && onReady) {
+      onReady(dispatch);
+    }
+  }, [editor, dispatch, onReady]);
 
   const toggleBold = () => {
     dispatch({ type: 'format', style: 'bold', action: 'toggle' });

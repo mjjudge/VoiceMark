@@ -70,11 +70,28 @@ const App: React.FC = () => {
 
     if (result.kind === 'insert') {
       dispatch({ type: 'insertText', text: result.text });
+      lastAppliedRef.current = result.text;
     } else if (result.kind === 'ops') {
-      result.ops.forEach(op => dispatch(op));
+      result.ops.forEach(op => {
+        dispatch(op);
+        // Track what was inserted for spacing purposes
+        if (op.type === 'insertText') {
+          lastAppliedRef.current = op.text;
+        } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+          lastAppliedRef.current = '\n';
+        }
+      });
     } else if (result.kind === 'confirm') {
       if (window.confirm(result.prompt)) {
-        result.ops.forEach(op => dispatch(op));
+        result.ops.forEach(op => {
+          dispatch(op);
+          // Track what was inserted for spacing purposes
+          if (op.type === 'insertText') {
+            lastAppliedRef.current = op.text;
+          } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+            lastAppliedRef.current = '\n';
+          }
+        });
       }
     }
   };
@@ -184,8 +201,16 @@ const App: React.FC = () => {
     if (fullTranscript) {
       const ops = parseTranscriptToOps(fullTranscript, VOICE_CONFIG);
       
-      // Execute each operation
-      ops.forEach(op => dispatch(op));
+      // Execute each operation and track what was inserted
+      ops.forEach(op => {
+        dispatch(op);
+        // Track what was inserted for spacing purposes
+        if (op.type === 'insertText') {
+          lastAppliedRef.current = op.text;
+        } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+          lastAppliedRef.current = '\n';
+        }
+      });
       
       // Add a final paragraph break after all operations
       dispatch({ type: 'insertNewParagraph' });
@@ -209,8 +234,16 @@ const App: React.FC = () => {
   const handleConfirmAccept = useCallback(() => {
     if (!dispatch || !pendingConfirm) return;
     
-    // Execute the pending operations
-    pendingConfirm.ops.forEach(op => dispatch(op));
+    // Execute the pending operations and track what was inserted
+    pendingConfirm.ops.forEach(op => {
+      dispatch(op);
+      // Track what was inserted for spacing purposes
+      if (op.type === 'insertText') {
+        lastAppliedRef.current = op.text;
+      } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+        lastAppliedRef.current = '\n';
+      }
+    });
     
     // Clear pending state
     setPendingConfirm(null);

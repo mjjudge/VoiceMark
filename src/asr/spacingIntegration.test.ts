@@ -55,7 +55,7 @@ describe('Spacing normalization integration', () => {
     });
 
     it('should add space after punctuation for next word', () => {
-      let lastApplied = ',';
+      const lastApplied = ',';
       
       const text = 'world';
       const spacing = normalizeSpacing(lastApplied, text);
@@ -88,7 +88,7 @@ describe('Spacing normalization integration', () => {
     });
 
     it('should not add space after newline', () => {
-      let lastApplied = 'Hello\n';
+      const lastApplied = 'Hello\n';
       
       const text = 'World';
       const spacing = normalizeSpacing(lastApplied, text);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
 interface PendingConfirm {
   prompt: string;
@@ -39,6 +39,16 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
 
   const statusText = getStatusText(status);
   const hasContent = finalSegments.length > 0 || partialText.trim().length > 0;
+  
+  // Ref for auto-scrolling content to bottom
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll to bottom when content changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    }
+  }, [finalSegments, partialText]);
 
   return (
     <div style={styles.container}>
@@ -74,7 +84,7 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
           </button>
         </div>
       </div>
-      <div style={styles.content}>
+      <div ref={contentRef} style={styles.content}>
         {pendingConfirm && (
           <div style={styles.confirmContainer}>
             <div style={styles.confirmPrompt}>{pendingConfirm.prompt}</div>
@@ -129,12 +139,17 @@ const styles = {
     backgroundColor: '#2d2d30',
     borderBottom: '1px solid #3e3e42',
     minHeight: '80px',
+    maxHeight: '35vh',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   } as React.CSSProperties,
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '8px',
+    flexShrink: 0,
   } as React.CSSProperties,
   label: {
     fontSize: '12px',
@@ -180,6 +195,9 @@ const styles = {
     fontSize: '16px',
     color: '#d4d4d4',
     lineHeight: '1.5',
+    overflowY: 'auto',
+    flex: 1,
+    minHeight: 0,
   } as React.CSSProperties,
   finalText: {
     color: '#d4d4d4',

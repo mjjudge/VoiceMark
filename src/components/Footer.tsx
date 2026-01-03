@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+}
 
 interface FooterProps {
   isRecording: boolean;
@@ -6,6 +11,9 @@ interface FooterProps {
   onStopRecording: () => void;
   autoApplyFinal: boolean;
   onAutoApplyFinalChange: (value: boolean) => void;
+  asrMode: 'simulated' | 'real';
+  selectedDeviceId: string | null;
+  onDeviceChange: (deviceId: string) => void;
 }
 
 const Footer: React.FC<FooterProps> = ({ 
@@ -13,10 +21,47 @@ const Footer: React.FC<FooterProps> = ({
   onStartRecording, 
   onStopRecording,
   autoApplyFinal,
-  onAutoApplyFinalChange
+  onAutoApplyFinalChange,
+  asrMode,
+  selectedDeviceId,
+  onDeviceChange
 }) => {
   const [autoCommit, setAutoCommit] = useState(true);
   const [commandMode, setCommandMode] = useState(false);
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
+
+  // Enumerate audio input devices
+  useEffect(() => {
+    const enumerateDevices = async () => {
+      try {
+        // Request permission first to get labeled devices
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices
+          .filter(d => d.kind === 'audioinput')
+          .map((d, i) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Microphone ${i + 1}`
+          }));
+        setAudioDevices(audioInputs);
+        
+        // Auto-select first device if none selected
+        if (!selectedDeviceId && audioInputs.length > 0) {
+          onDeviceChange(audioInputs[0].deviceId);
+        }
+      } catch (err) {
+        console.warn('Could not enumerate audio devices:', err);
+      }
+    };
+    
+    enumerateDevices();
+    
+    // Re-enumerate when devices change
+    navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', enumerateDevices);
+    };
+  }, [selectedDeviceId, onDeviceChange]);
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -79,8 +124,27 @@ const Footer: React.FC<FooterProps> = ({
       </div>
       
       <div style={styles.rightSection}>
+        {/* Microphone selector - only show for real ASR mode */}
+        {asrMode === 'real' && audioDevices.length > 0 && (
+          <select
+            value={selectedDeviceId || ''}
+            onChange={(e) => onDeviceChange(e.target.value)}
+            disabled={isRecording}
+            style={styles.micSelect}
+            title="Select microphone"
+          >
+            {audioDevices.map(device => (
+              <option key={device.deviceId} value={device.deviceId}>
+                🎤 {device.label}
+              </option>
+            ))}
+          </select>
+        )}
         <span style={styles.statusText}>
-          {isRecording ? 'Recording...' : 'Ready (Simulated ASR)'}
+          {isRecording 
+            ? 'Recording...' 
+            : `Ready (${asrMode === 'real' ? 'Real Mic' : 'Simulated ASR'})`
+          }
         </span>
       </div>
     </footer>
@@ -143,6 +207,17 @@ const styles = {
     fontSize: '14px',
     color: '#4ec9b0',
     fontWeight: 500,
+  } as React.CSSProperties,
+  micSelect: {
+    padding: '6px 10px',
+    marginRight: '12px',
+    backgroundColor: '#3c3c3c',
+    color: '#d4d4d4',
+    border: '1px solid #3e3e42',
+    borderRadius: '4px',
+    fontSize: '13px',
+    maxWidth: '200px',
+    cursor: 'pointer',
   } as React.CSSProperties,
 };
 

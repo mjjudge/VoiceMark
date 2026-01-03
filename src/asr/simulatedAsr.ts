@@ -4,10 +4,12 @@
  * This is a frontend-only simulation for development and testing.
  * It emits ASR events periodically to simulate real speech recognition behavior.
  * 
+ * Implements the AsrEngine interface for interchangeability with real ASR engines.
+ * 
  * Future: Replace with real Whisper.cpp integration
  */
 
-import type { AsrEvent } from './events';
+import type { AsrEvent, AsrEngine, AsrStartOptions } from './events';
 
 /**
  * Sample phrases for simulation.
@@ -35,25 +37,35 @@ const SAMPLE_PHRASES = [
   'End of first paragraph voicemark full stop voicemark new paragraph Starting a new thought voicemark full stop',
   'Introduction complete voicemark full stop voicemark new paragraph Now for the main content voicemark full stop',
   
-  // With formatting commands
+  // With formatting commands - make
   'This word is voicemark make bold important voicemark full stop',
-  'Please voicemark make italic emphasise voicemark full stop this point voicemark full stop',
+  'Please voicemark make italic emphasise this point voicemark full stop',
+  'This is voicemark make underline underlined text voicemark full stop',
+  
+  // With formatting commands - unmake and toggle
+  'Remove the voicemark unmake bold bold style voicemark full stop',
+  'Switch the voicemark toggle italic emphasis voicemark full stop',
+  'Clear the voicemark unmake underline underline voicemark full stop',
   
   // With punctuation variety
   'Here is a list voicemark colon apples voicemark comma oranges voicemark comma and bananas voicemark full stop',
   'Wait voicemark dash I have an idea voicemark exclamation mark',
   'The answer is voicemark colon forty two voicemark full stop',
   
-  // Delete commands (for testing confirmation flow)
-  'This was a mistake voicemark delete last word voicemark full stop',
+  // Delete commands
+  'Oops wrong word voicemark delete last word voicemark full stop',
+  'Scratch that entire thought voicemark delete last sentence',
   
   // Questions
   'What do you think about this voicemark question mark',
   'Can voice dictation really work this well voicemark question mark',
   
   // Complex mixed content
-  'Dear colleague voicemark comma voicemark new paragraph Thank you for your message voicemark full stop I will respond shortly voicemark full stop',
+  'Dear colleague voicemark comma voicemark new paragraph Thank you for your message voicemark full stop',
   'Note to self voicemark colon remember to review the document voicemark full stop',
+  
+  // New line vs new paragraph
+  'Line one voicemark new line Line two voicemark new line Line three voicemark full stop',
 ];
 
 // Simulation parameters
@@ -70,8 +82,11 @@ let eventCallback: ((e: AsrEvent) => void) | null = null;
 
 /**
  * Start the simulated ASR engine
+ * 
+ * @param onEvent - Callback to receive ASR events
  */
-export function start(onEvent: (e: AsrEvent) => void): void {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function start(onEvent: (e: AsrEvent) => void, _options?: AsrStartOptions): void {
   // Clean up any existing timers
   stop();
 
@@ -212,3 +227,14 @@ function finalizeCurrent(force = false): void {
   // Reset state for next segment
   currentWordIndex = 0;
 }
+
+/**
+ * Simulated ASR Engine instance
+ * 
+ * Implements the AsrEngine interface for use as a drop-in replacement
+ * for real ASR engines during development and testing.
+ */
+export const simulatedAsrEngine: AsrEngine = {
+  start,
+  stop,
+};

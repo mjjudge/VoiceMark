@@ -1,5 +1,59 @@
 # API Surface
-## Proposed Tauri commands
+
+## Sidecar HTTP API (voicemark-sidecar)
+
+The Rust sidecar provides a simple HTTP API for transcription:
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/transcribe` | Transcribe audio |
+
+### GET /health
+
+Returns sidecar status.
+
+**Response:**
+```json
+{
+  "ok": true,
+  "model_loaded": true
+}
+```
+
+### POST /transcribe
+
+Transcribe an audio file.
+
+**Request:** `multipart/form-data`
+- `file`: Audio blob (WebM/Opus, WAV, etc.)
+
+**Response:**
+```json
+{
+  "text": "Hello world",
+  "segments": 1
+}
+```
+
+**Error response:**
+```json
+{
+  "error": "Model not loaded"
+}
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VOICEMARK_PORT` | `3001` | Server port |
+| `VOICEMARK_MODEL_PATH` | `./models/ggml-base.en.bin` | Whisper model path |
+| `RUST_LOG` | - | Logging level (e.g., `info`, `debug`) |
+
+## Proposed Tauri commands (future)
 
 ### Transcription
 - `transcribe_file(path, opts) -> { text, segments }`

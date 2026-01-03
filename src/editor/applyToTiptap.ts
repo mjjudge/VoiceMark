@@ -88,7 +88,9 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
           .command(({ tr, state }) => {
             const { from } = state.selection;
             const text = state.doc.textBetween(0, from);
-            const match = text.match(/\S+\s*$/);
+            // Match optional preceding whitespace + word + optional trailing whitespace
+            // This ensures "Oops wrong word" → "Oops wrong" (no trailing space)
+            const match = text.match(/\s*\S+\s*$/);
             if (match) {
               const pos = from - match[0].length;
               tr.delete(pos, from);

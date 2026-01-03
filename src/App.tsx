@@ -7,10 +7,30 @@ import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
 import { parseInlineVoiceMark } from './voice/parseInlineVoiceMark';
 import { parseMixedDictationToOps } from './voice/parseMixedDictation';
 import { normalizeSpacing } from './asr/textBuffer';
+import { initTranscriber } from './asr/transcription';
 import type { EditorOp } from './editor/ops';
-import * as simulatedAsr from './asr/simulatedAsr';
-import type { AsrEvent } from './asr/events';
+import type { AsrEvent, AsrEngine } from './asr/events';
+import { simulatedAsrEngine } from './asr/simulatedAsr';
+import { recordingAsrEngine } from './asr/recordingAsr';
 import './styles/global.css';
+
+/**
+ * ASR Engine Selection
+ * 
+ * Use environment variable VITE_ASR_MODE to select the ASR engine:
+ * - 'real' (default): Uses real microphone recording
+ * - 'simulated': Uses simulated ASR with fake transcription for testing
+ * 
+ * To use simulated mode for testing without a microphone:
+ *   VITE_ASR_MODE=simulated pnpm dev
+ * 
+ * Or add to .env.local:
+ *   VITE_ASR_MODE=simulated
+ */
+const ASR_MODE = import.meta.env.VITE_ASR_MODE || 'real';
+console.log('[VoiceMark] ASR_MODE:', ASR_MODE, '| env value:', import.meta.env.VITE_ASR_MODE);
+const asrEngine: AsrEngine = ASR_MODE === 'simulated' ? simulatedAsrEngine : recordingAsrEngine;
+console.log('[VoiceMark] Using engine:', ASR_MODE === 'simulated' ? 'simulatedAsrEngine' : 'recordingAsrEngine');
 
 // Configuration for voice command parsing in dev mode
 const DEV_COMMAND_CONFIG = {
@@ -45,6 +65,9 @@ const App: React.FC = () => {
   // Auto-apply final ASR text to editor (default: ON)
   const [autoApplyFinal, setAutoApplyFinal] = useState(true);
   
+  // Selected microphone device
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  
   // Confirmation state for destructive commands
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [lastFinalRoutedTs, setLastFinalRoutedTs] = useState<number | null>(null);
@@ -57,10 +80,17 @@ const App: React.FC = () => {
     setDispatch(() => dispatchFn);
   };
 
+  // Initialize transcriber on mount (silently - logs to console)
+  useEffect(() => {
+    initTranscriber().then((ready) => {
+      console.log('[VoiceMark] Transcriber initialized, sidecar ready:', ready);
+    });
+  }, []);
+
   // Cleanup on unmount: stop ASR to clear timers
   useEffect(() => {
     return () => {
-      simulatedAsr.stop();
+      asrEngine.stop();
     };
   }, []);
 
@@ -172,24 +202,46 @@ const App: React.FC = () => {
   // Start recording
   const startRecording = useCallback(() => {
     setIsRecording(true);
-    simulatedAsr.start(handleAsrEvent);
-  }, [handleAsrEvent]);
+    // Note: recordingAsrEngine.start() is async but we don't need to await
+    // Error handling is done via the asr:error event
+    asrEngine.start(handleAsrEvent, { 
+      deviceId: selectedDeviceId || undefined 
+    });
+  }, [handleAsrEvent, selectedDeviceId]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
     setIsRecording(false);
-    simulatedAsr.stop();
+    asrEngine.stop();
   }, []);
 
   // Commit transcript to editor
   const handleCommitTranscript = useCallback(() => {
     if (!dispatch) return;
 
-    // If auto-apply is disabled, we need to insert any un-applied finalSegments
-    // If auto-apply is enabled, finalSegments might still have content if there were issues
-    // We'll insert any remaining content either way for safety
-    
-    // Collect all segments including any non-empty partial text
+    // If auto-apply is enabled, content is already in the editor.
+    // We only need to handle any remaining partial text and clear the transcript panel.
+    if (autoApplyFinal) {
+      // Only insert partial text if there's any (unlikely, but handle it)
+      if (partialText.trim()) {
+        const ops = parseInlineVoiceMark(partialText, DEV_COMMAND_CONFIG);
+        ops.forEach(op => {
+          dispatch(op);
+          if (op.type === 'insertText') {
+            lastAppliedRef.current = op.text;
+          } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+            lastAppliedRef.current = '\n';
+          }
+        });
+      }
+      
+      // Clear the transcript panel display
+      setFinalSegments([]);
+      setPartialText('');
+      return;
+    }
+
+    // Auto-apply is OFF: insert all finalSegments that haven't been applied yet
     const segments = [...finalSegments];
     if (partialText.trim()) {
       segments.push(partialText);
@@ -223,7 +275,7 @@ const App: React.FC = () => {
     // Clear both final segments and partial text
     setFinalSegments([]);
     setPartialText('');
-  }, [dispatch, finalSegments, partialText]);
+  }, [dispatch, finalSegments, partialText, autoApplyFinal]);
 
   // Clear transcript
   const handleClearTranscript = useCallback(() => {
@@ -312,6 +364,9 @@ const App: React.FC = () => {
         onStopRecording={stopRecording}
         autoApplyFinal={autoApplyFinal}
         onAutoApplyFinalChange={setAutoApplyFinal}
+        asrMode={ASR_MODE as 'simulated' | 'real'}
+        selectedDeviceId={selectedDeviceId}
+        onDeviceChange={setSelectedDeviceId}
       />
     </div>
   );

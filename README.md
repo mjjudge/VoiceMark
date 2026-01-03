@@ -5,29 +5,95 @@ Offline voice-to-text with **voice-driven editing** and a **Markdown-first edito
 ## v0.1 goals
 - In-app dictation with realtime transcript panel
 - Manual selection/editing + bold/italic/underline
-- Prefix-gated voice commands: **“VoiceMark …”** / **“Voice Mark …”**
+- Prefix-gated voice commands: **"VoiceMark …"** / **"Voice Mark …"**
 - Store notes as Markdown (underline as `<u>…</u>`)
 - Whisper.cpp sidecar design target
 
-## Current Status: Simulated ASR
-The application currently uses a **simulated ASR engine** (`src/asr/simulatedAsr.ts`) for development and testing. This allows the UI and event streaming architecture to be developed and validated without requiring microphone access or Whisper integration.
+## Quick Start
 
-**Features implemented:**
-- Event-based ASR architecture with status, partial, and final events
-- Live transcript panel with recording state display
-- Commit/Clear actions for managing transcribed text
-- Integration with TipTap editor via EditorOps
+```bash
+# Install dependencies
+pnpm install
 
-**Next steps:** Replace the simulated engine with real Whisper.cpp integration while maintaining the same event interface.
+# Start development server (uses real microphone by default)
+pnpm dev
+```
+
+The browser will request microphone permission when you click **Record**.
+
+## ASR Modes
+
+VoiceMark supports two ASR (Automatic Speech Recognition) modes:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **real** (default) | Captures audio from your microphone | Normal usage |
+| **simulated** | Emits fake transcription for testing | Development, CI, demos |
+
+### Switching modes
+
+```bash
+# Default: real microphone
+pnpm dev
+
+# Simulated mode (no microphone needed)
+VITE_ASR_MODE=simulated pnpm dev
+```
+
+Or create a `.env.local` file:
+```bash
+VITE_ASR_MODE=simulated
+```
+
+### Selecting a microphone
+
+When using real mode, a microphone dropdown appears in the footer. Select your preferred audio input device before recording.
+
+> **Note:** Transcription currently shows placeholder text "(listening...)" while recording. Real Whisper.cpp transcription is the next milestone.
+
+## Current Status
+
+**Implemented:**
+- ✅ Event-based ASR architecture with status, partial, and final events
+- ✅ Real microphone capture via Web Audio API
+- ✅ Microphone device selection
+- ✅ Live transcript panel with recording state display
+- ✅ Voice command parsing (punctuation, formatting, navigation)
+- ✅ TipTap editor integration via EditorOps
+- ✅ Simulated ASR mode for testing
+
+**Next steps:**
+- Whisper.cpp sidecar integration for real transcription
+- Settings panel for microphone/audio configuration
 
 ## Docs
-- `docs/functional/UI_SPEC_V0_1.md`
-- `docs/technical/VOICE_COMMANDS.md`
-- `docs/technical/DOCKER_FOR_AGENTS.md`
+- [UI Specification](docs/functional/UI_SPEC_V0_1.md)
+- [Voice Commands](docs/technical/VOICE_COMMANDS.md)
+- [Technical Spec](docs/technical/TECHNICAL_SPEC.md)
+- [Architecture Decisions](docs/decisions/)
 
-## Docker dev (lint/test/docs)
+## Development
+
+```bash
+# Run tests
+pnpm test
+
+# Type checking
+pnpm typecheck
+
+# Linting
+pnpm lint
+
+# All checks
+pnpm test && pnpm typecheck && pnpm lint
+```
+
+## Docker (for CI/agents)
+
 ```bash
 docker compose run --rm dev bash
 pnpm -v
 rustc -V
 ```
+
+See [Docker for Agents](docs/technical/DOCKER_FOR_AGENTS.md) for details.

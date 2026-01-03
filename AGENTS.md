@@ -32,11 +32,25 @@ If behaviour changes, update relevant docs:
 ## Dev commands
 ```bash
 pnpm install
+pnpm dev                           # Real microphone (default)
+pnpm dev:simulated                 # Simulated ASR (no mic needed)
 pnpm lint
 pnpm typecheck
 pnpm test
-cd src-tauri && cargo test
+
+# Sidecar commands
+pnpm sidecar:download-model        # Download base.en model (~142 MB)
+pnpm sidecar:build                 # Build sidecar (debug)
+pnpm sidecar:build:release         # Build sidecar (release)
+pnpm sidecar:run                   # Run sidecar (localhost:3001)
+pnpm sidecar:test                  # Run sidecar tests
 ```
+
+## ASR Modes
+- **real** (default): Uses real microphone capture
+- **simulated**: Emits fake transcription for testing
+
+Agents working in Docker/CI should use simulated mode. See [ADR-006](docs/decisions/ADR-006-real-mic-default.md).
 
 ## Docker
 See `docs/technical/DOCKER_FOR_AGENTS.md`.

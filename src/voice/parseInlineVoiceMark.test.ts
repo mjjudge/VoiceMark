@@ -1,5 +1,14 @@
 /**
  * Tests for parseInlineVoiceMark - multiple command parsing from single ASR final.
+ * 
+ * SPACING RULES:
+ * - Text BEFORE punctuation: NO trailing space (punctuation attaches directly: "Hello,")
+ * - Text BEFORE non-punctuation commands (formatting, deletion): NO trailing space
+ * - Text AFTER punctuation: has LEADING space (" world")
+ * - Text AFTER newline commands: NO leading space (starts at beginning of new line)
+ * - Text AFTER non-punctuation commands: has LEADING space (" world")
+ * 
+ * The result: "Hello, world" not "Hello , world"
  */
 
 import { describe, it, expect } from 'vitest';
@@ -17,16 +26,16 @@ describe('parseInlineVoiceMark', () => {
       const text = "My name is Marcus voicemark comma what's your name voicemark new paragraph";
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
-      // Expected operations:
-      // 1. insertText("My name is Marcus ")
+      // Expected operations with correct spacing:
+      // 1. insertText("My name is Marcus") - no trailing space before punctuation
       // 2. insertText(",")
-      // 3. insertText(" what's your name ")
+      // 3. insertText(" what's your name") - leading space after punctuation, no trailing space before newline
       // 4. insertNewParagraph
       
       expect(ops).toHaveLength(4);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'My name is Marcus ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'My name is Marcus' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: " what's your name " });
+      expect(ops[2]).toEqual({ type: 'insertText', text: " what's your name" });
       expect(ops[3]).toEqual({ type: 'insertNewParagraph' });
     });
 
@@ -48,12 +57,12 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       // Expected operations:
-      // 1. insertText("hello ")
+      // 1. insertText("hello") - no trailing space before formatting command
       // 2. format(bold, make)
-      // 3. insertText(" world")
+      // 3. insertText(" world") - leading space after formatting command
       
       expect(ops).toHaveLength(3);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'hello' });
       expect(ops[1]).toEqual({ type: 'format', style: 'bold', action: 'make' });
       expect(ops[2]).toEqual({ type: 'insertText', text: ' world' });
     });
@@ -65,7 +74,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello world ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello world' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
 
@@ -83,7 +92,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(3);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Start ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Start' });
       expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
       expect(ops[2]).toEqual({ type: 'insertText', text: ' End' });
     });
@@ -95,9 +104,9 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(4);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'First ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'First' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: ' second ' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' second' });
       expect(ops[3]).toEqual({ type: 'insertText', text: '.' });
     });
 
@@ -106,11 +115,11 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(6);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'A ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'A' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: ' B ' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' B' });
       expect(ops[3]).toEqual({ type: 'insertText', text: '.' });
-      expect(ops[4]).toEqual({ type: 'insertText', text: ' C ' });
+      expect(ops[4]).toEqual({ type: 'insertText', text: ' C' });
       expect(ops[5]).toEqual({ type: 'insertText', text: '?' });
     });
 
@@ -119,7 +128,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(4);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Start ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Start' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
       expect(ops[2]).toEqual({ type: 'insertText', text: '.' });
       expect(ops[3]).toEqual({ type: 'insertText', text: ' end' });
@@ -156,9 +165,9 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(5);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Make this ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Make this' });
       expect(ops[1]).toEqual({ type: 'format', style: 'bold', action: 'make' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: ' bold text ' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' bold text' });
       expect(ops[3]).toEqual({ type: 'format', style: 'bold', action: 'unmake' });
       expect(ops[4]).toEqual({ type: 'insertText', text: ' normal again' });
     });
@@ -170,9 +179,10 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(3);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'First line ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'First line' });
       expect(ops[1]).toEqual({ type: 'insertNewLine' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: ' second line' });
+      // Text after newline: NO leading space (starts at beginning of new line)
+      expect(ops[2]).toEqual({ type: 'insertText', text: 'second line' });
     });
 
     it('should parse new paragraph command', () => {
@@ -180,9 +190,10 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(3);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'First paragraph ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'First paragraph' });
       expect(ops[1]).toEqual({ type: 'insertNewParagraph' });
-      expect(ops[2]).toEqual({ type: 'insertText', text: ' second paragraph' });
+      // Text after newline: NO leading space (starts at beginning of new paragraph)
+      expect(ops[2]).toEqual({ type: 'insertText', text: 'second paragraph' });
     });
   });
 
@@ -192,17 +203,18 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Some text here ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Some text here' });
       expect(ops[1]).toEqual({ type: 'deleteLastWord' });
     });
 
-    it('should handle delete last sentence as insert (confirm-kind)', () => {
+    it('should execute delete last sentence command', () => {
       const text = 'voicemark delete last sentence';
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
-      // According to constraints: "Any confirm-kind parsed inline should be treated as an insert"
+      // Delete last sentence executes immediately in inline ASR parsing
+      // (confirmation flow is only for Dev Command Runner with UI)
       expect(ops).toHaveLength(1);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'delete last sentence' });
+      expect(ops[0]).toEqual({ type: 'deleteLastSentence' });
     });
   });
 
@@ -246,7 +258,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
 
@@ -255,7 +267,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
 
@@ -264,7 +276,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Test ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Test' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
   });
@@ -288,12 +300,12 @@ describe('parseInlineVoiceMark', () => {
   });
 
   describe('whitespace handling', () => {
-    it('should trim trailing whitespace from before text', () => {
+    it('should trim whitespace from text before commands', () => {
       const text = 'Hello     voicemark comma';
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
 
@@ -302,7 +314,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello   world ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello   world' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
   });
@@ -339,7 +351,7 @@ describe('parseInlineVoiceMark', () => {
       // Unsupported command: prefix is treated as text, then remaining text follows
       expect(ops).toHaveLength(2);
       expect(ops[0]).toEqual({ type: 'insertText', text: 'voicemark ' });
-      expect(ops[1]).toEqual({ type: 'insertText', text: ' unknown command here' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: 'unknown command here' });
     });
 
     it('should handle trailing whitespace', () => {
@@ -347,7 +359,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
   });
@@ -363,7 +375,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, context);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
 
@@ -377,7 +389,7 @@ describe('parseInlineVoiceMark', () => {
       const ops = parseInlineVoiceMark(text, context);
       
       expect(ops).toHaveLength(2);
-      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello ' });
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
   });
@@ -397,6 +409,45 @@ describe('parseInlineVoiceMark', () => {
       
       expect(ops).toHaveLength(1);
       expect(ops[0]).toEqual({ type: 'format', style: 'underline', action: 'toggle' });
+    });
+  });
+
+  describe('spacing verification (concatenation produces correct output)', () => {
+    it('should produce "Hello, world." when concatenated', () => {
+      const text = 'Hello voicemark comma world voicemark full stop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      // Concatenate all insertText ops
+      const result = ops
+        .filter(op => op.type === 'insertText')
+        .map(op => (op as { type: 'insertText'; text: string }).text)
+        .join('');
+      
+      expect(result).toBe('Hello, world.');
+    });
+
+    it('should produce "First. Second!" when concatenated', () => {
+      const text = 'First voicemark full stop Second voicemark exclamation mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      const result = ops
+        .filter(op => op.type === 'insertText')
+        .map(op => (op as { type: 'insertText'; text: string }).text)
+        .join('');
+      
+      expect(result).toBe('First. Second!');
+    });
+
+    it('should produce "A, B, C." with multiple commas', () => {
+      const text = 'A voicemark comma B voicemark comma C voicemark full stop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      const result = ops
+        .filter(op => op.type === 'insertText')
+        .map(op => (op as { type: 'insertText'; text: string }).text)
+        .join('');
+      
+      expect(result).toBe('A, B, C.');
     });
   });
 });

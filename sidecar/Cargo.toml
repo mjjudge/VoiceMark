@@ -1,0 +1,41 @@
+[package]
+name = "voicemark-sidecar"
+version = "0.1.0"
+edition = "2021"
+description = "VoiceMark transcription sidecar using whisper.cpp"
+license = "MIT"
+
+[[bin]]
+name = "voicemark-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP server
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Whisper transcription
+whisper-rs = "0.11"
+
+# Audio processing (for ffmpeg subprocess)
+tempfile = "3"
+
+# Error handling & logging
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Multipart form handling
+axum-extra = { version = "0.9", features = ["multipart"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

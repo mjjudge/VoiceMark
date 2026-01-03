@@ -203,14 +203,14 @@ describe('parseTranscriptToOps', () => {
   });
 
   describe('confirm handling', () => {
-    it('should handle confirm commands by inserting text without confirmation', () => {
-      // With parseInlineVoiceMark, confirm-kind commands are treated as plain text
-      // per the requirement: "Any confirm-kind parsed inline should be treated as an insert"
+    it('should execute confirm commands immediately in inline mode', () => {
+      // With parseInlineVoiceMark, confirm-kind commands are executed immediately
+      // (confirmation flow is only for Dev Command Runner with UI)
       const result = parseTranscriptToOps('voicemark delete last sentence');
       
-      // Should insert the command phrase as text (no confirmation in inline mode)
+      // Should execute the delete last sentence command
       expect(result).toEqual([
-        { type: 'insertText', text: 'delete last sentence' }
+        { type: 'deleteLastSentence' }
       ]);
     });
   });

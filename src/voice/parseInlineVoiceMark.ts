@@ -67,6 +67,25 @@ const SUPPORTED_COMMANDS = [
  * parseInlineVoiceMark("Hello voicemark comma world", { prefixes: ['voicemark'] })
  * // Returns: [{ type: 'insertText', text: 'Hello ' }, { type: 'insertText', text: ',' }, { type: 'insertText', text: ' world' }]
  */
+/**
+ * Check if a command produces punctuation (text that shouldn't have space before it).
+ */
+function isPunctuationCommand(commandPhrase: string): boolean {
+  const punctuationCommands = [
+    'comma', 'full stop', 'period', 'question mark', 
+    'exclamation mark', 'colon', 'semicolon', 'dash',
+  ];
+  return punctuationCommands.includes(commandPhrase.toLowerCase());
+}
+
+/**
+ * Check if a command produces a newline.
+ */
+function isNewlineCommand(commandPhrase: string): boolean {
+  const newlineCommands = ['new line', 'new paragraph'];
+  return newlineCommands.includes(commandPhrase.toLowerCase());
+}
+
 export function parseInlineVoiceMark(
   text: string,
   context: ParseContext
@@ -75,6 +94,8 @@ export function parseInlineVoiceMark(
   const prefixes = context.prefixes || ['voicemark', 'voice mark'];
   
   let currentPos = 0;
+  // Track what the previous operation was to handle spacing correctly
+  let prevOpType: 'none' | 'text' | 'punctuation' | 'newline' | 'command' = 'none';
   
   while (currentPos < text.length) {
     // Find the next command prefix
@@ -83,20 +104,25 @@ export function parseInlineVoiceMark(
     if (result === null) {
       // No more commands found - insert remaining text
       const remaining = text.substring(currentPos);
-      const trimmed = remaining.trimEnd();
+      const trimmed = remaining.trim();
       if (trimmed) {
-        ops.push({ type: 'insertText', text: trimmed });
+        // Add leading space if previous op was punctuation or command (not newline, not first)
+        const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
+        ops.push({ type: 'insertText', text: needsSpace ? ' ' + trimmed : trimmed });
       }
       break;
     }
     
     const { prefixStart, prefixEnd, prefix } = result;
     
-    // Insert any text before the command (trim right)
+    // Insert any text before the command (trim both sides)
     if (prefixStart > currentPos) {
-      const beforeText = text.substring(currentPos, prefixStart).trimEnd();
+      const beforeText = text.substring(currentPos, prefixStart).trim();
       if (beforeText) {
-        ops.push({ type: 'insertText', text: beforeText + ' ' });
+        // Add leading space if previous op was punctuation or command (not newline, not first)
+        const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
+        ops.push({ type: 'insertText', text: needsSpace ? ' ' + beforeText : beforeText });
+        prevOpType = 'text';
       }
     }
     
@@ -110,21 +136,34 @@ export function parseInlineVoiceMark(
       
       if (parsed.kind === 'ops') {
         ops.push(...parsed.ops);
+        // Track what type of command this was
+        if (isPunctuationCommand(commandResult.commandPhrase)) {
+          prevOpType = 'punctuation';
+        } else if (isNewlineCommand(commandResult.commandPhrase)) {
+          prevOpType = 'newline';
+        } else {
+          prevOpType = 'command';
+        }
       } else if (parsed.kind === 'insert') {
         // Should not happen since we have the prefix, but handle gracefully
         ops.push({ type: 'insertText', text: parsed.text });
+        prevOpType = 'text';
       } else if (parsed.kind === 'confirm') {
-        // Treat confirm-kind as insert of the original text chunk
-        // Per requirement: "Any confirm-kind parsed inline should be treated as an insert of the original chunk"
-        ops.push({ type: 'insertText', text: commandResult.commandPhrase });
+        // For inline ASR parsing, execute confirm-kind commands immediately
+        // (confirmation flow is only for Dev Command Runner with UI)
+        // The user said the command aloud, so they clearly want it executed
+        ops.push(...parsed.ops);
+        prevOpType = 'command';
       }
       
       // Move position past this command
       currentPos = commandResult.endPos;
     } else {
       // No supported command found after prefix - treat prefix as normal text
-      ops.push({ type: 'insertText', text: prefix + ' ' });
+      const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
+      ops.push({ type: 'insertText', text: needsSpace ? ' ' + prefix + ' ' : prefix + ' ' });
       currentPos = prefixEnd;
+      prevOpType = 'text';
     }
   }
   

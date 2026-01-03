@@ -5,6 +5,7 @@ import Editor from './components/Editor';
 import Footer from './components/Footer';
 import { parseTranscriptToOps } from './voice/parseTranscriptToOps';
 import { parseInlineVoiceMark } from './voice/parseInlineVoiceMark';
+import { parseMixedDictationToOps } from './voice/parseMixedDictation';
 import { normalizeSpacing } from './asr/textBuffer';
 import type { EditorOp } from './editor/ops';
 import * as simulatedAsr from './asr/simulatedAsr';
@@ -66,24 +67,47 @@ const App: React.FC = () => {
   const handleRunCommand = () => {
     if (!dispatch || !commandInput.trim()) return;
 
-    const ops = parseInlineVoiceMark(commandInput, DEV_COMMAND_CONFIG);
-    setDebugOps(ops);
+    const parsed = parseMixedDictationToOps(commandInput, DEV_COMMAND_CONFIG);
     
-    ops.forEach(op => {
-      // Skip confirmation for deleteLastSentence in dev runner (for testing)
-      if (op.type === 'deleteLastSentence') {
-        dispatch(op);
+    // Show all ops in debug panel (immediate + pending)
+    const allOps = [...parsed.immediateOps, ...parsed.pendingOps];
+    setDebugOps(allOps);
+    
+    // Track whether we've handled spacing for the first text insertion
+    let firstTextHandled = false;
+    
+    // Execute immediate ops first
+    parsed.immediateOps.forEach(op => {
+      if (op.type === 'insertText') {
+        // Apply spacing normalization to the first text insertion only
+        if (!firstTextHandled) {
+          const spacing = normalizeSpacing(lastAppliedRef.current, op.text);
+          const textToInsert = spacing + op.text;
+          dispatch({ type: 'insertText', text: textToInsert });
+          lastAppliedRef.current = textToInsert;
+          firstTextHandled = true;
+        } else {
+          dispatch(op);
+          lastAppliedRef.current = op.text;
+        }
       } else {
         dispatch(op);
-      }
-      
-      // Track what was inserted for spacing purposes
-      if (op.type === 'insertText') {
-        lastAppliedRef.current = op.text;
-      } else if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
-        lastAppliedRef.current = '\n';
+        // Track what was inserted for spacing purposes
+        if (op.type === 'insertNewLine' || op.type === 'insertNewParagraph') {
+          lastAppliedRef.current = '\n';
+        }
       }
     });
+    
+    // If there's a confirmation required, set up pending state
+    if (parsed.confirm) {
+      setPendingConfirm({
+        prompt: parsed.confirm.prompt,
+        ops: parsed.pendingOps,
+        sourceText: parsed.confirm.sourceText,
+        ts: Date.now()
+      });
+    }
   };
 
   // ASR event handler

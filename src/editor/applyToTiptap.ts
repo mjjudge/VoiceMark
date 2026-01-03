@@ -5,7 +5,6 @@
 
 import type { Editor } from '@tiptap/react';
 import type { EditorOp } from './ops';
-import { findDeleteStartIndex } from './sentence';
 
 /**
  * Apply an editor operation to a TipTap editor.
@@ -107,34 +106,72 @@ export function applyEditorOp(editor: Editor | null, op: EditorOp): void {
         break;
       }
 
-      // Otherwise, delete the last sentence in the current block
+      // Delete the incomplete sentence (text after the last terminator)
+      // This is "scratch that" behavior - delete what was just dictated
       editor
         .chain()
         .focus()
         .command(({ tr, state }) => {
           const { from } = state.selection;
-          const { $from } = state.selection;
-
-          // Find nearest textblock depth
-          let depth = $from.depth;
-          while (depth > 0 && !$from.node(depth).isTextblock) {
-            depth--;
+          
+          // Step 1: Find the last sentence terminator before cursor
+          let lastTerminatorPos = -1;
+          for (let pos = from - 1; pos >= 0; pos--) {
+            try {
+              const $pos = state.doc.resolve(pos);
+              if ($pos.parent.isTextblock) {
+                const offset = $pos.parentOffset;
+                if (offset > 0) {
+                  const ch = $pos.parent.textContent[offset - 1];
+                  if (ch === '.' || ch === '!' || ch === '?') {
+                    lastTerminatorPos = pos;
+                    break;
+                  }
+                }
+              }
+            } catch {
+              continue;
+            }
           }
-
-          const blockStart = $from.start(depth);
-
-          // Use stable separators so offsets map predictably
-          const blockText = state.doc.textBetween(blockStart, from, '\n', '\n');
-
-          const cursorOffset = blockText.length;
-          const deleteStartOffset = findDeleteStartIndex(blockText, cursorOffset);
-
-          const deleteFrom = blockStart + deleteStartOffset;
-
-          // Safety clamp (prevents weird ranges)
-          const safeDeleteFrom = Math.max(blockStart, Math.min(deleteFrom, from));
-
-          tr.delete(safeDeleteFrom, from);
+          
+          // Step 2: Determine delete start position
+          let deleteFrom: number;
+          if (lastTerminatorPos === -1) {
+            // No terminator found, delete from document start
+            deleteFrom = 0;
+          } else {
+            // Start after the last terminator
+            deleteFrom = lastTerminatorPos;
+            
+            // Skip whitespace after the terminator
+            while (deleteFrom < from) {
+              try {
+                const $pos = state.doc.resolve(deleteFrom);
+                if ($pos.parent.isTextblock) {
+                  const offset = $pos.parentOffset;
+                  const text = $pos.parent.textContent;
+                  if (offset < text.length) {
+                    const ch = text[offset];
+                    if (ch === ' ' || ch === '\t') {
+                      deleteFrom++;
+                      continue;
+                    }
+                  }
+                }
+              } catch {
+                break;
+              }
+              break;
+            }
+          }
+          
+          // Safety clamp
+          const safeDeleteFrom = Math.max(0, Math.min(deleteFrom, from));
+          
+          if (safeDeleteFrom < from) {
+            tr.delete(safeDeleteFrom, from);
+          }
+          
           return true;
         })
         .run();

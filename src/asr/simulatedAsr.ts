@@ -9,16 +9,51 @@
 
 import type { AsrEvent } from './events';
 
-// Sample phrases for simulation
+/**
+ * Sample phrases for simulation.
+ * These use actual VoiceMark commands from VOICE_COMMANDS.md:
+ * 
+ * Punctuation: voicemark comma, voicemark full stop, voicemark question mark,
+ *              voicemark exclamation mark, voicemark colon, voicemark semicolon, voicemark dash
+ * Layout: voicemark new line, voicemark new paragraph
+ * Editing: voicemark delete last word, voicemark delete last sentence
+ * Formatting: voicemark make bold, voicemark make italic, voicemark make underline,
+ *             voicemark toggle bold, voicemark unmake bold
+ */
 const SAMPLE_PHRASES = [
-  'The quick brown fox jumps over the lazy dog',
-  'VoiceMark is a powerful dictation tool',
-  'Testing voice recognition capabilities',
-  'Make this text bold and underlined',
-  'Insert new paragraph here',
-  'voicemark delete last sentence',
-  'voicemark comma',
-  'Hello this is a test',
+  // Simple sentences with proper punctuation
+  'The quick brown fox jumps over the lazy dog voicemark full stop',
+  'VoiceMark is a powerful dictation tool voicemark full stop',
+  'Hello voicemark comma how are you today voicemark question mark',
+  'This is amazing voicemark exclamation mark',
+  
+  // Multiple sentences
+  'Testing voice recognition voicemark full stop It seems to work well voicemark full stop',
+  'First sentence here voicemark full stop Second sentence follows voicemark full stop',
+  
+  // With paragraph breaks
+  'End of first paragraph voicemark full stop voicemark new paragraph Starting a new thought voicemark full stop',
+  'Introduction complete voicemark full stop voicemark new paragraph Now for the main content voicemark full stop',
+  
+  // With formatting commands
+  'This word is voicemark make bold important voicemark full stop',
+  'Please voicemark make italic emphasise voicemark full stop this point voicemark full stop',
+  
+  // With punctuation variety
+  'Here is a list voicemark colon apples voicemark comma oranges voicemark comma and bananas voicemark full stop',
+  'Wait voicemark dash I have an idea voicemark exclamation mark',
+  'The answer is voicemark colon forty two voicemark full stop',
+  
+  // Delete commands (for testing confirmation flow)
+  'This was a mistake voicemark delete last word voicemark full stop',
+  
+  // Questions
+  'What do you think about this voicemark question mark',
+  'Can voice dictation really work this well voicemark question mark',
+  
+  // Complex mixed content
+  'Dear colleague voicemark comma voicemark new paragraph Thank you for your message voicemark full stop I will respond shortly voicemark full stop',
+  'Note to self voicemark colon remember to review the document voicemark full stop',
 ];
 
 // Simulation parameters

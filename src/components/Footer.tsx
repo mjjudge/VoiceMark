@@ -11,7 +11,7 @@ interface FooterProps {
   onStopRecording: () => void;
   autoApplyFinal: boolean;
   onAutoApplyFinalChange: (value: boolean) => void;
-  asrMode: 'simulated' | 'real';
+  asrMode: 'simulated' | 'real' | 'streaming';
   selectedDeviceId: string | null;
   onDeviceChange: (deviceId: string) => void;
 }
@@ -124,8 +124,8 @@ const Footer: React.FC<FooterProps> = ({
       </div>
       
       <div style={styles.rightSection}>
-        {/* Microphone selector - only show for real ASR mode */}
-        {asrMode === 'real' && audioDevices.length > 0 && (
+        {/* Microphone selector - only show for real ASR modes */}
+        {(asrMode === 'real' || asrMode === 'streaming') && audioDevices.length > 0 && (
           <select
             value={selectedDeviceId || ''}
             onChange={(e) => onDeviceChange(e.target.value)}
@@ -143,7 +143,7 @@ const Footer: React.FC<FooterProps> = ({
         <span style={styles.statusText}>
           {isRecording 
             ? 'Recording...' 
-            : `Ready (${asrMode === 'real' ? 'Real Mic' : 'Simulated ASR'})`
+            : `Ready (${asrMode === 'streaming' ? 'Streaming' : asrMode === 'real' ? 'Real Mic' : 'Simulated ASR'})`
           }
         </span>
       </div>

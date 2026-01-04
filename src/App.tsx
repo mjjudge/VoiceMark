@@ -12,25 +12,44 @@ import type { EditorOp } from './editor/ops';
 import type { AsrEvent, AsrEngine } from './asr/events';
 import { simulatedAsrEngine } from './asr/simulatedAsr';
 import { recordingAsrEngine } from './asr/recordingAsr';
+import { streamingAsrEngine } from './asr/streamingAsr';
 import './styles/global.css';
 
 /**
  * ASR Engine Selection
  * 
  * Use environment variable VITE_ASR_MODE to select the ASR engine:
- * - 'real' (default): Uses real microphone recording
+ * - 'real' (default): Uses real microphone recording with batch transcription
+ * - 'streaming': Uses WebSocket streaming for real-time transcription
  * - 'simulated': Uses simulated ASR with fake transcription for testing
  * 
  * To use simulated mode for testing without a microphone:
  *   VITE_ASR_MODE=simulated pnpm dev
+ * 
+ * To use streaming mode (experimental):
+ *   VITE_ASR_MODE=streaming pnpm dev
  * 
  * Or add to .env.local:
  *   VITE_ASR_MODE=simulated
  */
 const ASR_MODE = import.meta.env.VITE_ASR_MODE || 'real';
 console.log('[VoiceMark] ASR_MODE:', ASR_MODE, '| env value:', import.meta.env.VITE_ASR_MODE);
-const asrEngine: AsrEngine = ASR_MODE === 'simulated' ? simulatedAsrEngine : recordingAsrEngine;
-console.log('[VoiceMark] Using engine:', ASR_MODE === 'simulated' ? 'simulatedAsrEngine' : 'recordingAsrEngine');
+
+// Select ASR engine based on mode
+function getAsrEngine(): AsrEngine {
+  switch (ASR_MODE) {
+    case 'simulated':
+      console.log('[VoiceMark] Using engine: simulatedAsrEngine');
+      return simulatedAsrEngine;
+    case 'streaming':
+      console.log('[VoiceMark] Using engine: streamingAsrEngine (WebSocket)');
+      return streamingAsrEngine;
+    default:
+      console.log('[VoiceMark] Using engine: recordingAsrEngine');
+      return recordingAsrEngine;
+  }
+}
+const asrEngine: AsrEngine = getAsrEngine();
 
 // Configuration for voice command parsing in dev mode
 const DEV_COMMAND_CONFIG = {
@@ -364,7 +383,7 @@ const App: React.FC = () => {
         onStopRecording={stopRecording}
         autoApplyFinal={autoApplyFinal}
         onAutoApplyFinalChange={setAutoApplyFinal}
-        asrMode={ASR_MODE as 'simulated' | 'real'}
+        asrMode={ASR_MODE as 'simulated' | 'real' | 'streaming'}
         selectedDeviceId={selectedDeviceId}
         onDeviceChange={setSelectedDeviceId}
       />

@@ -3,30 +3,48 @@
 //! Converts WebM/Opus audio (from browser MediaRecorder) to WAV format
 //! that whisper.cpp expects (16kHz, mono, 16-bit PCM).
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, Context, bail};
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use tempfile::NamedTempFile;
 use tracing::{debug, instrument};
 
 /// Path to bundled ffmpeg binary, or falls back to system ffmpeg.
-fn ffmpeg_path() -> &'static str {
-    // In release builds, we bundle ffmpeg in resources/
-    // For development, fall back to system ffmpeg
+pub fn ffmpeg_path() -> Result<PathBuf> {
+    let exe = std::env::current_exe().context("Failed to resolve current_exe()")?;
+    let base = exe
+        .parent()
+        .context("Failed to resolve executable directory")?;
+
     #[cfg(target_os = "linux")]
-    const BUNDLED_PATH: &str = "./resources/ffmpeg/linux-x86_64/ffmpeg";
+    let rel = "resources/ffmpeg/linux-x86_64/ffmpeg";
 
     #[cfg(target_os = "macos")]
-    const BUNDLED_PATH: &str = "./resources/ffmpeg/darwin-x86_64/ffmpeg";
+    let rel = "resources/ffmpeg/darwin-x86_64/ffmpeg";
 
     #[cfg(target_os = "windows")]
-    const BUNDLED_PATH: &str = "./resources/ffmpeg/win-x86_64/ffmpeg.exe";
+    let rel = "resources/ffmpeg/win-x86_64/ffmpeg.exe";
 
-    if Path::new(BUNDLED_PATH).exists() {
-        BUNDLED_PATH
+    let p = base.join(rel);
+
+    if p.exists() {
+        Ok(p)
     } else {
-        "ffmpeg" // Fall back to system PATH
+        anyhow::bail!(
+            "Bundled ffmpeg not found at {}. Run: pnpm sidecar:fetch-ffmpeg",
+            p.display()
+        );
     }
+}
+
+pub fn write_temp_wav(bytes: &[u8]) -> Result<NamedTempFile> {
+    let f = tempfile::Builder::new()
+        .suffix(".wav")
+        .tempfile()
+        .context("Failed to create temp wav file")?;
+    std::fs::write(f.path(), bytes).context("Failed to write wav bytes")?;
+    Ok(f)
 }
 
 /// Converts audio bytes (WebM/Opus) to a temporary WAV file.
@@ -49,7 +67,7 @@ pub fn convert_to_wav(input_bytes: &[u8]) -> Result<NamedTempFile> {
     );
 
     // Run ffmpeg to convert to 16kHz mono 16-bit PCM WAV
-    let output = Command::new(ffmpeg_path())
+    let output = Command::new(ffmpeg_path()?)
         .args([
             "-y",                      // Overwrite output file
             "-i",

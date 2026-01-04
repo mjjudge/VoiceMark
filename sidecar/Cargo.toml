@@ -33,7 +33,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Multipart form handling
-axum-extra = { version = "0.9", features = ["multipart"] }
+axum-extra = { version = "0.9.6", features = ["multipart"] }
 
 [profile.release]
 opt-level = 3

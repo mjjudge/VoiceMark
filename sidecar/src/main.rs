@@ -27,12 +27,12 @@ use anyhow::{Context, Result};
 use axum::{
     Json,
     Router,
-    extract::Multipart,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
 };
-use serde::{Deserialize, Serialize};
+use axum_extra::extract::Multipart;
+use serde::Serialize;
 use std::env;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
@@ -93,16 +93,31 @@ async fn transcribe_audio(mut multipart: Multipart) -> impl IntoResponse {
     info!(bytes = audio_bytes.len(), "Received audio for transcription");
 
     // Convert to WAV
-    let wav_file = match audio::convert_to_wav(&audio_bytes) {
-        Ok(file) => file,
-        Err(e) => {
-            error!("Audio conversion failed: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": format!("Audio conversion failed: {}", e) })),
-            );
+    let wav_file = if is_wav(&audio_bytes) {
+        match audio::write_temp_wav(&audio_bytes) {
+            Ok(f) => f,
+            Err(e) => {
+                error!("Failed to write temp WAV: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("Failed to write temp WAV: {}", e) })),
+                );
+            }
         }
-    };
+    } else {
+        match audio::convert_to_wav(&audio_bytes) {
+            Ok(f) => f,
+            Err(e) => {
+                error!("Audio conversion failed: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("Audio conversion failed: {}", e) })),
+                );
+            }
+        }
+};
+
+
 
     // Read WAV samples
     let samples = match audio::read_wav_samples(wav_file.path()) {
@@ -159,6 +174,10 @@ async fn extract_audio_file(multipart: &mut Multipart) -> Result<Vec<u8>> {
     }
 
     anyhow::bail!("No 'file' field found in multipart form")
+}
+
+fn is_wav(bytes: &[u8]) -> bool {
+    bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE"
 }
 
 /// Build the application router.

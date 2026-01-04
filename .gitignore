@@ -106,6 +106,8 @@ models/*.tar.gz
 sidecar/target/
 sidecar/*.wav
 sidecar/*.webm
+sidecar/models/*.bin
+sidecar/resources/ffmpeg/*/
 
 # Compiled Binaries
 *.exe

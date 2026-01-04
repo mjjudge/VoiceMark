@@ -11,6 +11,7 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -18,8 +19,11 @@ use crate::transcribe::{self, TranscribeOptions, TranscribeResult};
 
 /// Configuration for streaming transcription
 const SAMPLE_RATE: u32 = 16000;
-const SLIDING_WINDOW_SECONDS: f32 = 15.0;
-const MAX_SAMPLES: usize = (SAMPLE_RATE as f32 * SLIDING_WINDOW_SECONDS) as usize;
+/// Chunk size before auto-commit (6 seconds of audio)
+const CHUNK_SECONDS: f32 = 6.0;
+const CHUNK_SAMPLES: usize = (SAMPLE_RATE as f32 * CHUNK_SECONDS) as usize;
+/// Minimum interval between transcriptions (throttle to avoid overload)
+const MIN_TRANSCRIBE_INTERVAL_MS: u128 = 500;
 
 /// Incoming WebSocket message types
 #[derive(Debug, Deserialize)]
@@ -67,62 +71,60 @@ pub enum ServerMessage {
 
 /// State for a streaming transcription session
 struct StreamingSession {
-    /// Accumulated audio samples (f32, 16kHz mono)
-    audio_buffer: Vec<f32>,
-    /// Last transcription result (for diffing)
-    last_text: String,
-    /// Number of samples that have been "committed" (finalized)
-    committed_samples: usize,
+    /// Current audio chunk being accumulated (f32, 16kHz mono)
+    current_chunk: Vec<f32>,
+    /// Last time we ran transcription (for throttling)
+    last_transcribe_time: Option<Instant>,
+    /// Whether a transcription is currently in progress
+    transcription_pending: bool,
 }
 
 impl StreamingSession {
     fn new() -> Self {
         Self {
-            audio_buffer: Vec::with_capacity(MAX_SAMPLES),
-            last_text: String::new(),
-            committed_samples: 0,
+            current_chunk: Vec::with_capacity(CHUNK_SAMPLES),
+            last_transcribe_time: None,
+            transcription_pending: false,
         }
     }
 
     fn reset(&mut self) {
-        self.audio_buffer.clear();
-        self.last_text.clear();
-        self.committed_samples = 0;
+        self.current_chunk.clear();
+        self.last_transcribe_time = None;
+        self.transcription_pending = false;
     }
 
-    /// Add audio samples to the buffer
-    fn add_samples(&mut self, samples: &[f32]) {
-        self.audio_buffer.extend_from_slice(samples);
+    /// Add audio samples to the current chunk
+    /// Returns true if chunk is ready for auto-commit
+    fn add_samples(&mut self, samples: &[f32]) -> bool {
+        self.current_chunk.extend_from_slice(samples);
+        self.current_chunk.len() >= CHUNK_SAMPLES
+    }
 
-        // If buffer exceeds max, trim from the start (but keep committed portion info)
-        if self.audio_buffer.len() > MAX_SAMPLES {
-            let excess = self.audio_buffer.len() - MAX_SAMPLES;
-            self.audio_buffer.drain(0..excess);
-            // Adjust committed_samples if we've trimmed past it
-            self.committed_samples = self.committed_samples.saturating_sub(excess);
+    /// Check if enough time has passed to transcribe again
+    fn should_transcribe(&self) -> bool {
+        if self.transcription_pending {
+            return false;
+        }
+        match self.last_transcribe_time {
+            None => true,
+            Some(last) => last.elapsed().as_millis() >= MIN_TRANSCRIBE_INTERVAL_MS,
         }
     }
 
-    /// Transcribe the current buffer and return new text
-    fn transcribe(&mut self) -> Result<Option<TranscribeResult>, anyhow::Error> {
-        if self.audio_buffer.is_empty() {
-            return Ok(None);
-        }
-
-        let options = TranscribeOptions {
-            language: Some("en".to_string()),
-            translate: false,
-        };
-
-        let result = transcribe::transcribe(&self.audio_buffer, options)?;
-        Ok(Some(result))
+    /// Get a clone of the current chunk for transcription
+    fn get_chunk_clone(&self) -> Vec<f32> {
+        self.current_chunk.clone()
     }
 
-    /// Finalize transcription and return the final text
-    fn finalize(&mut self) -> Result<Option<TranscribeResult>, anyhow::Error> {
-        let result = self.transcribe()?;
-        self.reset();
-        Ok(result)
+    /// Clear the current chunk after commit
+    fn clear_chunk(&mut self) {
+        self.current_chunk.clear();
+    }
+
+    /// Check if chunk has enough audio for meaningful transcription (at least 0.5s)
+    fn has_meaningful_audio(&self) -> bool {
+        self.current_chunk.len() >= (SAMPLE_RATE / 2) as usize
     }
 }
 
@@ -205,27 +207,96 @@ async fn handle_socket(socket: WebSocket) {
                         })
                         .collect();
 
-                    let mut session = session.lock().await;
-                    session.add_samples(&samples);
-                    debug!("Added {} samples from binary message", samples.len());
+                    let mut session_guard = session.lock().await;
+                    let chunk_ready = session_guard.add_samples(&samples);
+                    debug!("Added {} samples, chunk_ready={}", samples.len(), chunk_ready);
 
-                    // Transcribe and send partial
-                    match session.transcribe() {
-                        Ok(Some(result)) => {
-                            let partial_msg = ServerMessage::Partial {
-                                text: result.text,
-                                timestamp: now_millis(),
+                    // If chunk is full, auto-commit it as final
+                    if chunk_ready {
+                        session_guard.transcription_pending = true;
+                        let audio_data = session_guard.get_chunk_clone();
+                        session_guard.clear_chunk(); // Clear for next chunk
+                        drop(session_guard);
+
+                        info!("Auto-committing chunk ({} samples)", audio_data.len());
+
+                        // Run transcription in a blocking thread
+                        let transcribe_result = tokio::task::spawn_blocking(move || {
+                            let options = TranscribeOptions {
+                                language: Some("en".to_string()),
+                                translate: false,
                             };
-                            drop(session); // Release lock before sending
-                            if let Ok(json) = serde_json::to_string(&partial_msg) {
-                                if sender.send(Message::Text(json.into())).await.is_err() {
-                                    break;
+                            transcribe::transcribe(&audio_data, options)
+                        })
+                        .await;
+
+                        // Update session state
+                        let mut session_guard = session.lock().await;
+                        session_guard.transcription_pending = false;
+                        session_guard.last_transcribe_time = Some(Instant::now());
+                        drop(session_guard);
+
+                        // Send as FINAL (committed chunk)
+                        match transcribe_result {
+                            Ok(Ok(result)) => {
+                                let final_msg = ServerMessage::Final {
+                                    text: result.text,
+                                    timestamp: now_millis(),
+                                };
+                                if let Ok(json) = serde_json::to_string(&final_msg) {
+                                    if sender.send(Message::Text(json.into())).await.is_err() {
+                                        break;
+                                    }
                                 }
                             }
+                            Ok(Err(e)) => {
+                                error!("Transcription error: {}", e);
+                            }
+                            Err(e) => {
+                                error!("Spawn blocking error: {}", e);
+                            }
                         }
-                        Ok(None) => {}
-                        Err(e) => {
-                            error!("Transcription error: {}", e);
+                    }
+                    // Otherwise, send partial if throttle allows
+                    else if session_guard.should_transcribe() && session_guard.has_meaningful_audio() {
+                        session_guard.transcription_pending = true;
+                        let audio_data = session_guard.get_chunk_clone();
+                        drop(session_guard);
+
+                        // Run transcription in a blocking thread
+                        let transcribe_result = tokio::task::spawn_blocking(move || {
+                            let options = TranscribeOptions {
+                                language: Some("en".to_string()),
+                                translate: false,
+                            };
+                            transcribe::transcribe(&audio_data, options)
+                        })
+                        .await;
+
+                        // Update session state and send result
+                        let mut session_guard = session.lock().await;
+                        session_guard.transcription_pending = false;
+                        session_guard.last_transcribe_time = Some(Instant::now());
+                        drop(session_guard);
+
+                        match transcribe_result {
+                            Ok(Ok(result)) => {
+                                let partial_msg = ServerMessage::Partial {
+                                    text: result.text,
+                                    timestamp: now_millis(),
+                                };
+                                if let Ok(json) = serde_json::to_string(&partial_msg) {
+                                    if sender.send(Message::Text(json.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Ok(Err(e)) => {
+                                error!("Transcription error: {}", e);
+                            }
+                            Err(e) => {
+                                error!("Spawn blocking error: {}", e);
+                            }
                         }
                     }
                 }
@@ -263,20 +334,78 @@ async fn handle_client_message(
 
             match decode_audio(&data) {
                 Ok(samples) => {
-                    let mut session = session.lock().await;
-                    session.add_samples(&samples);
-                    debug!("Added {} samples", samples.len());
+                    let mut session_guard = session.lock().await;
+                    let chunk_ready = session_guard.add_samples(&samples);
+                    debug!("Added {} samples from JSON message", samples.len());
 
-                    // Transcribe and return partial
-                    match session.transcribe() {
-                        Ok(Some(result)) => Some(ServerMessage::Partial {
-                            text: result.text,
-                            timestamp: now_millis(),
-                        }),
-                        Ok(None) => None,
-                        Err(e) => Some(ServerMessage::Error {
-                            message: format!("Transcription failed: {}", e),
-                        }),
+                    // If chunk is full, auto-commit
+                    if chunk_ready {
+                        session_guard.transcription_pending = true;
+                        let audio_data = session_guard.get_chunk_clone();
+                        session_guard.clear_chunk();
+                        drop(session_guard);
+
+                        let transcribe_result = tokio::task::spawn_blocking(move || {
+                            let options = TranscribeOptions {
+                                language: Some("en".to_string()),
+                                translate: false,
+                            };
+                            transcribe::transcribe(&audio_data, options)
+                        })
+                        .await;
+
+                        let mut session_guard = session.lock().await;
+                        session_guard.transcription_pending = false;
+                        session_guard.last_transcribe_time = Some(Instant::now());
+                        drop(session_guard);
+
+                        match transcribe_result {
+                            Ok(Ok(result)) => Some(ServerMessage::Final {
+                                text: result.text,
+                                timestamp: now_millis(),
+                            }),
+                            Ok(Err(e)) => Some(ServerMessage::Error {
+                                message: format!("Transcription failed: {}", e),
+                            }),
+                            Err(e) => Some(ServerMessage::Error {
+                                message: format!("Spawn blocking failed: {}", e),
+                            }),
+                        }
+                    }
+                    // Otherwise send partial if throttle allows
+                    else if session_guard.should_transcribe() && session_guard.has_meaningful_audio() {
+                        session_guard.transcription_pending = true;
+                        let audio_data = session_guard.get_chunk_clone();
+                        drop(session_guard);
+
+                        let transcribe_result = tokio::task::spawn_blocking(move || {
+                            let options = TranscribeOptions {
+                                language: Some("en".to_string()),
+                                translate: false,
+                            };
+                            transcribe::transcribe(&audio_data, options)
+                        })
+                        .await;
+
+                        let mut session_guard = session.lock().await;
+                        session_guard.transcription_pending = false;
+                        session_guard.last_transcribe_time = Some(Instant::now());
+                        drop(session_guard);
+
+                        match transcribe_result {
+                            Ok(Ok(result)) => Some(ServerMessage::Partial {
+                                text: result.text,
+                                timestamp: now_millis(),
+                            }),
+                            Ok(Err(e)) => Some(ServerMessage::Error {
+                                message: format!("Transcription failed: {}", e),
+                            }),
+                            Err(e) => Some(ServerMessage::Error {
+                                message: format!("Spawn blocking failed: {}", e),
+                            }),
+                        }
+                    } else {
+                        None // Throttled, no response
                     }
                 }
                 Err(e) => Some(ServerMessage::Error {
@@ -285,24 +414,49 @@ async fn handle_client_message(
             }
         }
         ClientMessage::End => {
-            let mut session = session.lock().await;
-            match session.finalize() {
-                Ok(Some(result)) => Some(ServerMessage::Final {
+            let mut session_guard = session.lock().await;
+            let audio_data = session_guard.get_chunk_clone();
+            session_guard.reset();
+            drop(session_guard);
+
+            if audio_data.is_empty() {
+                return Some(ServerMessage::Final {
+                    text: String::new(),
+                    timestamp: now_millis(),
+                });
+            }
+
+            // Run final transcription in a blocking thread
+            let transcribe_result = tokio::task::spawn_blocking(move || {
+                let options = TranscribeOptions {
+                    language: Some("en".to_string()),
+                    translate: false,
+                };
+                transcribe::transcribe(&audio_data, options)
+            })
+            .await;
+
+            // Reset session
+            let mut session_guard = session.lock().await;
+            session_guard.reset();
+            drop(session_guard);
+
+            match transcribe_result {
+                Ok(Ok(result)) => Some(ServerMessage::Final {
                     text: result.text,
                     timestamp: now_millis(),
                 }),
-                Ok(None) => Some(ServerMessage::Final {
-                    text: String::new(),
-                    timestamp: now_millis(),
+                Ok(Err(e)) => Some(ServerMessage::Error {
+                    message: format!("Finalization failed: {}", e),
                 }),
                 Err(e) => Some(ServerMessage::Error {
-                    message: format!("Finalization failed: {}", e),
+                    message: format!("Spawn blocking failed: {}", e),
                 }),
             }
         }
         ClientMessage::Reset => {
-            let mut session = session.lock().await;
-            session.reset();
+            let mut session_guard = session.lock().await;
+            session_guard.reset();
             Some(ServerMessage::Ready {
                 message: "Session reset".to_string(),
             })
@@ -339,15 +493,26 @@ mod tests {
     }
 
     #[test]
-    fn test_streaming_session_buffer_limit() {
+    fn test_streaming_session_chunk_ready() {
         let mut session = StreamingSession::new();
 
-        // Add more samples than MAX_SAMPLES
-        let samples = vec![0.5f32; MAX_SAMPLES + 1000];
-        session.add_samples(&samples);
+        // Add samples less than chunk size - should return false
+        let small_samples = vec![0.5f32; CHUNK_SAMPLES / 2];
+        assert!(!session.add_samples(&small_samples));
 
-        // Buffer should be limited to MAX_SAMPLES
-        assert_eq!(session.audio_buffer.len(), MAX_SAMPLES);
+        // Add more to exceed chunk size - should return true
+        let more_samples = vec![0.5f32; CHUNK_SAMPLES];
+        assert!(session.add_samples(&more_samples));
+    }
+
+    #[test]
+    fn test_streaming_session_clear_chunk() {
+        let mut session = StreamingSession::new();
+        session.add_samples(&vec![0.5f32; 1000]);
+        assert!(!session.current_chunk.is_empty());
+        
+        session.clear_chunk();
+        assert!(session.current_chunk.is_empty());
     }
 
     #[test]

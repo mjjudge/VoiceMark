@@ -68,8 +68,8 @@ type ServerMessage = ServerPartial | ServerFinal | ServerError | ServerReady;
  * @param options - Optional configuration (e.g., deviceId)
  */
 async function start(onEvent: AsrEventCallback, options?: AsrStartOptions): Promise<void> {
-  // Clean up any existing session
-  stop();
+  // Clean up any existing session synchronously (no delays)
+  cleanupSync();
 
   eventCallback = onEvent;
   isActive = true;
@@ -322,12 +322,15 @@ function stop(): void {
 }
 
 /**
- * Clean up all resources.
+ * Synchronous cleanup for use when starting a new session.
+ * Does not send end message or trigger status events.
  */
-function cleanup(): void {
+function cleanupSync(): void {
+  isActive = false;
+  
   // Close WebSocket
   if (webSocket) {
-    if (webSocket.readyState === WebSocket.OPEN) {
+    if (webSocket.readyState === WebSocket.OPEN || webSocket.readyState === WebSocket.CONNECTING) {
       webSocket.close();
     }
     webSocket = null;
@@ -350,6 +353,13 @@ function cleanup(): void {
     mediaStream.getTracks().forEach(track => track.stop());
     mediaStream = null;
   }
+}
+
+/**
+ * Clean up all resources (alias for async-safe cleanup).
+ */
+function cleanup(): void {
+  cleanupSync();
 }
 
 /**

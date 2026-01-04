@@ -89,10 +89,12 @@ const App: React.FC = () => {
   
   // Confirmation state for destructive commands
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
-  const [lastFinalRoutedTs, setLastFinalRoutedTs] = useState<number | null>(null);
   
   // Track last applied text for spacing normalization
   const lastAppliedRef = useRef<string>('');
+  
+  // Use ref for lastFinalRoutedTs to avoid stale closure issues in the ASR callback
+  const lastFinalRoutedTsRef = useRef<number | null>(null);
 
   // Wrapper to handle the dispatch function from Editor
   const handleEditorReady = (dispatchFn: (op: EditorOp) => void) => {
@@ -170,10 +172,12 @@ const App: React.FC = () => {
         break;
       case 'asr:final': {
         // Prevent double-processing of the same final event
-        if (lastFinalRoutedTs === event.ts) {
+        if (lastFinalRoutedTsRef.current === event.ts) {
+          console.log('[App] Skipping duplicate final with ts:', event.ts);
           return;
         }
-        setLastFinalRoutedTs(event.ts);
+        console.log('[App] Processing final:', event.text.substring(0, 50) + '...');
+        lastFinalRoutedTsRef.current = event.ts;
         
         // Append to final segments for display
         setFinalSegments(prev => [...prev, event.text]);
@@ -216,7 +220,7 @@ const App: React.FC = () => {
         console.error('ASR Error:', event.message);
         break;
     }
-  }, [dispatch, lastFinalRoutedTs, autoApplyFinal]);
+  }, [dispatch, autoApplyFinal]);
 
   // Start recording
   const startRecording = useCallback(() => {

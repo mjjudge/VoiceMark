@@ -43,6 +43,19 @@ const FUZZY_COMMAND_MAP: Record<string, string> = {
   'new paragragh': 'new paragraph',
   // comma variants
   'coma': 'comma',
+  // unmake bold variants (Whisper often mishears "unmake" as "and make")
+  'and make bold': 'unmake bold',
+  'an make bold': 'unmake bold',
+  // unmake italic variants
+  'and make italic': 'unmake italic',
+  'and make italics': 'unmake italic',
+  'an make italic': 'unmake italic',
+  'an make italics': 'unmake italic',
+  // unmake underline variants
+  'and make underline': 'unmake underline',
+  'and make underlined': 'unmake underline',
+  'an make underline': 'unmake underline',
+  'an make underlined': 'unmake underline',
 };
 
 /**

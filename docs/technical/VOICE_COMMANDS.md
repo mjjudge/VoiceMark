@@ -118,7 +118,21 @@ Before matching, normalise the transcript:
 Use **two-pass parsing**:
 1) Try strict match (high precision)
 2) Try fuzzy match with small edit distance for known phrases (still gated by prefix)
+### Fuzzy matching for ASR errors
 
+Whisper sometimes mishears command phrases. VoiceMark includes a fuzzy matching map for known transcription errors:
+
+| Whisper output | Corrected to |
+|----------------|--------------|
+| `and make bold` | `unmake bold` |
+| `and make italic` | `unmake italic` |
+| `and make underline` | `unmake underline` |
+| `unmake it` | `unmake italic` |
+| `on make` | `unmake` |
+| `unmate` | `unmake` |
+| `uncommit` | `unmake` |
+
+This fuzzy matching is applied in `parseInlineVoiceMark.ts` before command extraction.
 ---
 
 ## 6) Operation model (structured ops)

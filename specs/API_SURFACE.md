@@ -2,14 +2,15 @@
 
 ## Sidecar HTTP API (voicemark-sidecar)
 
-The Rust sidecar provides a simple HTTP API for transcription:
+The Rust sidecar provides HTTP and WebSocket APIs for transcription:
 
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| POST | `/transcribe` | Transcribe audio |
+| POST | `/transcribe` | Batch transcribe audio |
+| GET | `/stream` | WebSocket streaming transcription |
 
 ### GET /health
 
@@ -25,7 +26,7 @@ Returns sidecar status.
 
 ### POST /transcribe
 
-Transcribe an audio file.
+Transcribe an audio file (batch mode).
 
 **Request:** `multipart/form-data`
 - `file`: Audio blob (WebM/Opus, WAV, etc.)
@@ -44,6 +45,30 @@ Transcribe an audio file.
   "error": "Model not loaded"
 }
 ```
+
+### GET /stream (WebSocket)
+
+Real-time streaming transcription via WebSocket.
+
+**Protocol:**
+- Client sends binary PCM audio frames (16kHz, mono, Int16 little-endian)
+- Client sends JSON control messages:
+  ```json
+  { "type": "stop" }
+  ```
+- Server sends JSON transcription messages:
+  ```json
+  { "type": "partial", "text": "hello wor" }
+  { "type": "final", "text": "Hello world." }
+  ```
+
+**Design:**
+- Audio is buffered in 6-second chunks
+- Each chunk is transcribed as a final when complete
+- Partial transcriptions sent every ~500ms during dictation
+- Transcription runs on blocking thread pool to avoid blocking async runtime
+
+**Client implementation:** `src/asr/streamingAsr.ts`
 
 ### Environment Variables
 

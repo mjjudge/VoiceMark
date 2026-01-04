@@ -63,20 +63,30 @@ A single window with three vertical regions:
 
 ## 3. Realtime transcript behaviour
 
-VoiceMark keeps two buffers:
+VoiceMark provides real-time streaming transcription via WebSocket connection to the sidecar.
 
-1) **Ephemeral transcript**
-- Updated frequently from ASR partial/chunk results
-- Can be cleared without affecting the document
+### Streaming architecture
+- Audio captured via AudioWorklet at 16kHz mono
+- PCM samples sent to sidecar WebSocket (`/stream`)
+- Audio is transcribed in 6-second chunks (auto-committed as finals)
+- Partial transcriptions sent every ~500ms during dictation
 
-2) **Committed document insertion**
-- When auto-commit triggers (Stop) or user says “VoiceMark insert that”
-- The current ephemeral transcript is inserted into the Markdown editor at the cursor
+### Buffers
+
+1) **Ephemeral transcript (partials)**
+- Updated from ASR partial results during dictation
+- Shows work-in-progress text in Live Dictation Panel
+- Cleared when corresponding final arrives
+
+2) **Committed document insertion (finals)**
+- Finals are routed to the Markdown editor immediately
+- Each final is appended at cursor position
 - The insertion range is recorded as **LastDictatedSpan**
 
 ### Merge rules
-- If multiple chunks arrive, they update the ephemeral panel (replace-last strategy)
-- On commit, a single `InsertText` op is applied and recorded for undo
+- Partial results update the ephemeral panel (replace-last strategy)
+- Finals are accumulated and inserted into the editor
+- Spacing between finals is handled automatically (no double spaces)
 
 ---
 

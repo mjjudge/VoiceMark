@@ -85,7 +85,6 @@ let eventCallback: ((e: AsrEvent) => void) | null = null;
  * 
  * @param onEvent - Callback to receive ASR events
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function start(onEvent: (e: AsrEvent) => void, _options?: AsrStartOptions): void {
   // Clean up any existing timers
   stop();

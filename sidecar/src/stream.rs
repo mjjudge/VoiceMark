@@ -15,7 +15,7 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::transcribe::{self, TranscribeOptions, TranscribeResult};
+use crate::transcribe::{self, TranscribeOptions};
 
 /// Configuration for streaming transcription
 const SAMPLE_RATE: u32 = 16000;

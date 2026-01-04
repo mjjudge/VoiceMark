@@ -26,7 +26,8 @@ import { stubTranscriber } from './transcription/stubTranscriber';
 
 // Recording parameters
 const AUDIO_CHUNK_INTERVAL_MS = 1000; // Collect audio in 1-second chunks
-const PLACEHOLDER_PARTIAL_INTERVAL_MS = 500; // Emit placeholder partial every 500ms
+const INCREMENTAL_PROCESS_INTERVAL_MS = 3000; // Process accumulated chunks every 3 seconds for partial results
+const MIN_CHUNK_SIZE_FOR_PARTIAL = 2; // Minimum chunks needed before processing partial
 
 // Engine state
 let isActive = false;
@@ -43,14 +44,18 @@ let mediaRecorder: MediaRecorder | null = null;
 let mimeTypeUsed = '';
 
 // Timers
-let placeholderTimer: ReturnType<typeof setInterval> | null = null;
+let incrementalProcessTimer: ReturnType<typeof setInterval> | null = null;
 
 // Audio data storage (for transcription)
 let audioChunks: Blob[] = [];
+let processedChunkCount = 0; // Track how many chunks have been processed for partials
 
 // Promise to wait for onstop event
 let onStopPromise: Promise<void> | null = null;
 let onStopResolve: (() => void) | null = null;
+
+// Track if incremental processing is in progress
+let isProcessing = false;
 
 // Pluggable transcriber (default: stub)
 let transcriber: Transcriber = stubTranscriber;
@@ -173,8 +178,8 @@ async function start(onEvent: AsrEventCallback, options?: AsrStartOptions): Prom
       message: 'Microphone recording started',
     });
 
-    // Start emitting placeholder partials to show the UI is working
-    startPlaceholderEmission();
+    // Start incremental processing for real-time partial results
+    startIncrementalProcessing();
 
   } catch (error) {
     // Handle permission denied or other errors
@@ -199,6 +204,75 @@ async function start(onEvent: AsrEventCallback, options?: AsrStartOptions): Prom
     eventCallback = null;
     
     throw error;
+  }
+}
+
+/**
+ * Process accumulated audio chunks incrementally for partial results.
+ * 
+ * This function is called periodically to transcribe accumulated audio
+ * and emit partial results, providing real-time feedback to the user.
+ * 
+ * @param signal - AbortSignal for cancellation
+ * @param callback - Event callback for emitting results
+ * @param chunks - Audio chunks to transcribe
+ * @param startIndex - Index of first chunk to process (for incremental)
+ */
+async function processChunks(
+  signal: AbortSignal,
+  callback: AsrEventCallback,
+  chunks: Blob[],
+  startIndex: number
+): Promise<void> {
+  // Check if we have new audio to transcribe
+  if (chunks.length <= startIndex) {
+    console.log('[recordingAsr] No new chunks to process');
+    return;
+  }
+  
+  // Check if already aborted
+  if (signal.aborted) {
+    console.log('[recordingAsr] Processing aborted before starting');
+    return;
+  }
+
+  // Build blob from all chunks (including previously processed ones for context)
+  const audioBlob = new Blob(chunks, { type: mimeTypeUsed });
+  console.log('[recordingAsr] Processing chunks:', chunks.length, 'total,', audioBlob.size, 'bytes');
+
+  try {
+    // Run transcription
+    const startTime = Date.now();
+    const text = await transcriber.transcribe(audioBlob, { signal });
+    const duration = Date.now() - startTime;
+    
+    console.log('[recordingAsr] Partial transcription completed in', duration, 'ms');
+    
+    // Check abort after transcription
+    if (signal.aborted) {
+      console.log('[recordingAsr] Processing aborted after completion');
+      return;
+    }
+
+    // Emit partial transcription
+    callback({
+      type: 'asr:partial',
+      text,
+      ts: Date.now(),
+    });
+
+  } catch (error) {
+    // Handle abort gracefully
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.log('[recordingAsr] Processing was aborted');
+      return;
+    }
+    
+    // Handle other errors - log but don't stop recording
+    const message = error instanceof Error ? error.message : 'Processing failed';
+    console.error('[recordingAsr] Processing error:', message);
+    
+    // Don't emit error for partial failures, just log
   }
 }
 
@@ -296,11 +370,15 @@ function stop(): void {
   // Immediately mark as inactive to prevent new events
   isActive = false;
 
-  // Stop placeholder emission
-  if (placeholderTimer) {
-    clearInterval(placeholderTimer);
-    placeholderTimer = null;
+  // Stop incremental processing
+  if (incrementalProcessTimer) {
+    clearInterval(incrementalProcessTimer);
+    incrementalProcessTimer = null;
   }
+  
+  // Reset processing state
+  processedChunkCount = 0;
+  isProcessing = false;
 
   // Stop MediaRecorder if active
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -415,38 +493,54 @@ function getSupportedMimeType(): string {
 }
 
 /**
- * Start emitting placeholder partial events.
+ * Start incremental processing for real-time partial results.
  * 
- * This provides visual feedback that recording is active.
- * In the future, this will be replaced with real transcription updates.
+ * Periodically processes accumulated audio chunks and emits partial
+ * transcription results, providing real-time feedback to the user.
  */
-function startPlaceholderEmission(): void {
-  if (placeholderTimer) {
-    clearInterval(placeholderTimer);
+function startIncrementalProcessing(): void {
+  if (incrementalProcessTimer) {
+    clearInterval(incrementalProcessTimer);
   }
 
-  let dotCount = 0;
-
-  placeholderTimer = setInterval(() => {
-    if (!isActive || !eventCallback) {
-      if (placeholderTimer) {
-        clearInterval(placeholderTimer);
-        placeholderTimer = null;
+  incrementalProcessTimer = setInterval(async () => {
+    if (!isActive || !eventCallback || !abortController) {
+      if (incrementalProcessTimer) {
+        clearInterval(incrementalProcessTimer);
+        incrementalProcessTimer = null;
       }
       return;
     }
 
-    // Animate dots to show progress, include chunk count for diagnostics
-    dotCount = (dotCount % 3) + 1;
-    const dots = '.'.repeat(dotCount);
-    const chunkInfo = audioChunks.length > 0 ? ` [${audioChunks.length} chunks]` : '';
+    // Skip if already processing or not enough chunks
+    if (isProcessing || audioChunks.length < MIN_CHUNK_SIZE_FOR_PARTIAL) {
+      return;
+    }
 
-    eventCallback({
-      type: 'asr:partial',
-      text: `(listening${dots})${chunkInfo}`,
-      ts: Date.now(),
-    });
-  }, PLACEHOLDER_PARTIAL_INTERVAL_MS);
+    // Only process if we have new chunks since last time
+    if (audioChunks.length <= processedChunkCount) {
+      return;
+    }
+
+    // Mark as processing to prevent concurrent calls
+    isProcessing = true;
+    const startIndex = processedChunkCount;
+    processedChunkCount = audioChunks.length;
+
+    console.log('[recordingAsr] Starting incremental processing:', 
+      audioChunks.length, 'chunks,', 
+      audioChunks.length - startIndex, 'new');
+
+    // Process chunks asynchronously
+    await processChunks(
+      abortController.signal,
+      eventCallback,
+      audioChunks,
+      startIndex
+    );
+
+    isProcessing = false;
+  }, INCREMENTAL_PROCESS_INTERVAL_MS);
 }
 
 /**

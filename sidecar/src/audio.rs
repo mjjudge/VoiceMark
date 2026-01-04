@@ -142,8 +142,8 @@ mod tests {
 
     #[test]
     fn test_ffmpeg_path_returns_valid_string() {
-        let path = ffmpeg_path();
-        assert!(!path.is_empty());
+        let path = ffmpeg_path().expect("ffmpeg should be found");
+        assert!(!path.as_os_str().is_empty());
     }
 
     #[test]

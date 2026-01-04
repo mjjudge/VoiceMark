@@ -11,13 +11,18 @@ path = "src/main.rs"
 
 [dependencies]
 # HTTP server
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
-tower = "0.4"
+tokio-tungstenite = "0.24"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Whisper transcription
 whisper-rs = "0.11"
+
+# Audio processing
+base64 = "0.22"
 
 # Audio processing (for ffmpeg subprocess)
 tempfile = "3"

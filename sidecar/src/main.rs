@@ -6,6 +6,7 @@
 //!
 //! - `GET /health` - Health check
 //! - `POST /transcribe` - Transcribe audio (multipart form, field: `file`)
+//! - `GET /stream` - WebSocket endpoint for streaming transcription
 //!
 //! ## Usage
 //!
@@ -21,6 +22,7 @@
 //! ```
 
 mod audio;
+mod stream;
 mod transcribe;
 
 use anyhow::{Context, Result};
@@ -191,6 +193,7 @@ fn build_router() -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/transcribe", post(transcribe_audio))
+        .route("/stream", get(stream::ws_handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
 }

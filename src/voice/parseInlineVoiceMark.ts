@@ -172,9 +172,10 @@ export function parseInlineVoiceMark(
 
 /**
  * Check if a character represents a word boundary.
+ * Includes whitespace AND common punctuation (to handle Whisper artifacts like "Voice Mark, comma")
  */
 function isWordBoundary(char: string | undefined): boolean {
-  return char === undefined || /\s/.test(char);
+  return char === undefined || /[\s,;:\-\.!\?]/.test(char);
 }
 
 /**
@@ -255,6 +256,16 @@ function parseCommandPhrase(
   let pos = startPos;
   while (pos < text.length && /\s/.test(text[pos])) {
     pos++;
+  }
+  
+  // Skip punctuation that Whisper might insert after "Voice Mark" (e.g., comma, colon)
+  // This handles cases like "Voice Mark, question mark" → "question mark"
+  while (pos < text.length && /[,;:\-]/.test(text[pos])) {
+    pos++;
+    // Skip any whitespace after the punctuation
+    while (pos < text.length && /\s/.test(text[pos])) {
+      pos++;
+    }
   }
   
   if (pos >= text.length) {

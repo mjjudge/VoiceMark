@@ -362,6 +362,43 @@ describe('parseInlineVoiceMark', () => {
       expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
     });
+
+    it('should strip comma after prefix (Whisper artifact)', () => {
+      // Whisper often adds punctuation after "Voice Mark" like: "Voice Mark, question mark"
+      const text = 'Hello Voice Mark, question mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '?' });
+    });
+
+    it('should strip colon after prefix (Whisper artifact)', () => {
+      const text = 'Voice Mark: new paragraph';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'insertNewParagraph' });
+    });
+
+    it('should strip semicolon after prefix (Whisper artifact)', () => {
+      const text = 'Voice Mark; make bold';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'format', style: 'bold', action: 'make' });
+    });
+
+    it('should handle multiple commands with commas after prefix', () => {
+      const text = 'Hello Voice Mark, comma world Voice Mark, full stop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(4);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' world' });
+      expect(ops[3]).toEqual({ type: 'insertText', text: '.' });
+    });
   });
 
   describe('prefix variations', () => {

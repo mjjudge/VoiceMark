@@ -102,6 +102,11 @@ models/*.bin
 models/*.zip
 models/*.tar.gz
 
+# Rust sidecar build artifacts
+sidecar/target/
+sidecar/*.wav
+sidecar/*.webm
+
 # Compiled Binaries
 *.exe
 *.dll

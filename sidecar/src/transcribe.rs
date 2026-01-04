@@ -96,14 +96,14 @@ pub fn transcribe(samples: &[f32], options: TranscribeOptions) -> Result<Transcr
     params.set_print_realtime(false);
     params.set_print_timestamps(false);
     
-    // Optimize for real-time transcription
-    // Use smaller segments for faster processing and lower latency
-    params.set_max_len(1); // Process in smaller chunks
+    // Optimize for real-time transcription with smaller processing chunks
+    // max_len=1: Maximum tokens per text segment (smaller = faster, more granular)
+    params.set_max_len(1);
     params.set_token_timestamps(false); // Disable token-level timestamps for speed
     params.set_single_segment(false); // Allow multiple segments for incremental output
     
     // Audio processing optimizations
-    params.set_speed_up(true); // Enable speed optimizations
+    params.set_speed_up(true); // Enable speed optimizations in Whisper
     params.set_audio_ctx(0); // Use default audio context window
 
     // Run transcription

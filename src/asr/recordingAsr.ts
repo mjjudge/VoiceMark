@@ -236,7 +236,11 @@ async function processChunks(
     return;
   }
 
-  // Build blob from all chunks (including previously processed ones for context)
+  // Build blob from all chunks (including previously processed ones)
+  // Note: We include all chunks for transcription context accuracy.
+  // Whisper performs better with full audio context rather than processing
+  // only incremental chunks. The trade-off is some redundant processing
+  // for better transcription quality and continuity.
   const audioBlob = new Blob(chunks, { type: mimeTypeUsed });
   console.log('[recordingAsr] Processing chunks:', chunks.length, 'total,', audioBlob.size, 'bytes');
 
@@ -269,10 +273,14 @@ async function processChunks(
     }
     
     // Handle other errors - log but don't stop recording
+    // Emit a warning event for visibility without interrupting the flow
     const message = error instanceof Error ? error.message : 'Processing failed';
-    console.error('[recordingAsr] Processing error:', message);
+    console.warn('[recordingAsr] Partial processing error:', message);
     
-    // Don't emit error for partial failures, just log
+    callback({
+      type: 'asr:error',
+      message: `Partial transcription warning: ${message}`,
+    });
   }
 }
 
@@ -523,13 +531,15 @@ function startIncrementalProcessing(): void {
     }
 
     // Mark as processing to prevent concurrent calls
+    // Capture chunk count atomically to avoid race conditions
     isProcessing = true;
     const startIndex = processedChunkCount;
-    processedChunkCount = audioChunks.length;
+    const currentChunkCount = audioChunks.length;
+    processedChunkCount = currentChunkCount;
 
     console.log('[recordingAsr] Starting incremental processing:', 
-      audioChunks.length, 'chunks,', 
-      audioChunks.length - startIndex, 'new');
+      currentChunkCount, 'chunks,', 
+      currentChunkCount - startIndex, 'new');
 
     // Process chunks asynchronously
     await processChunks(

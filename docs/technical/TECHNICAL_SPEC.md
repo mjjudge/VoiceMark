@@ -57,12 +57,12 @@ Response: { "text": "...", "segments": N }
 
 ### Model
 
-Default: `base.en` model (~142 MB). Download to `sidecar/models/`:
+Default: `small.en` model (~466 MB). Download to `sidecar/models/`:
 
 ```bash
 cd sidecar
-curl -L -o models/ggml-base.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+curl -L -o models/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
 ### Running the sidecar

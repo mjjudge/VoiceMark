@@ -39,7 +39,7 @@ pnpm typecheck
 pnpm test
 
 # Sidecar commands
-pnpm sidecar:download-model        # Download base.en model (~142 MB)
+pnpm sidecar:download-model        # Download small.en model (~466 MB)
 pnpm sidecar:build                 # Build sidecar (debug)
 pnpm sidecar:build:release         # Build sidecar (release)
 pnpm sidecar:run                   # Run sidecar (localhost:3001)

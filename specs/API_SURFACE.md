@@ -50,7 +50,7 @@ Transcribe an audio file.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VOICEMARK_PORT` | `3001` | Server port |
-| `VOICEMARK_MODEL_PATH` | `./models/ggml-base.en.bin` | Whisper model path |
+| `VOICEMARK_MODEL_PATH` | `./models/ggml-small.en.bin` | Whisper model path |
 | `RUST_LOG` | - | Logging level (e.g., `info`, `debug`) |
 
 ## Proposed Tauri commands (future)

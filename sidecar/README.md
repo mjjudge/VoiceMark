@@ -11,8 +11,8 @@ Rust HTTP server providing speech-to-text transcription using [whisper.cpp](http
 pnpm sidecar:download-model
 
 # Or manually:
-curl -L -o models/ggml-base.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+curl -L -o models/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
 ### 2. Build and run
@@ -59,7 +59,7 @@ Transcribe an audio file.
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `VOICEMARK_PORT` | `3001` | Server port |
-| `VOICEMARK_MODEL_PATH` | `./models/ggml-base.en.bin` | Path to Whisper model |
+| `VOICEMARK_MODEL_PATH` | `./models/ggml-small.en.bin` | Path to Whisper model |
 | `RUST_LOG` | `info` | Log level |
 
 ## Development

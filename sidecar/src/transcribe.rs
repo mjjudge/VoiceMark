@@ -13,7 +13,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 static WHISPER_CTX: OnceLock<WhisperContext> = OnceLock::new();
 
 /// Default model path relative to sidecar binary.
-const DEFAULT_MODEL_PATH: &str = "./models/ggml-base.en.bin";
+const DEFAULT_MODEL_PATH: &str = "./models/ggml-small.en.bin";
 
 /// Initialize the Whisper model.
 ///
@@ -26,7 +26,7 @@ pub fn init_model(model_path: Option<&str>) -> Result<()> {
     if !Path::new(path).exists() {
         bail!(
             "Whisper model not found at '{}'. Download it with:\n\
-             curl -L -o {} https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+             curl -L -o {} https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
             path,
             path
         );

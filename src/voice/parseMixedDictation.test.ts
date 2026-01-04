@@ -214,4 +214,145 @@ describe('parseMixedDictationToOps', () => {
       ]);
     });
   });
+
+  describe('Whisper artifact filtering', () => {
+    it('filters out [BLANK_AUDIO] artifact', () => {
+      const result = parseMixedDictationToOps('[BLANK_AUDIO] Hello world', ctx);
+      
+      expect(result.chunks).toHaveLength(1);
+      expect(result.chunks[0]).toEqual({ kind: 'text', text: 'Hello world' });
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello world' }
+      ]);
+    });
+
+    it('filters out multiple artifacts', () => {
+      const result = parseMixedDictationToOps('[MUSIC] Hello [NOISE] world [BLANK_AUDIO]', ctx);
+      
+      expect(result.chunks).toHaveLength(1);
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello  world' }
+      ]);
+    });
+
+    it('returns empty for artifact-only input', () => {
+      const result = parseMixedDictationToOps('[BLANK_AUDIO]', ctx);
+      
+      expect(result.chunks).toEqual([]);
+      expect(result.immediateOps).toEqual([]);
+    });
+
+    it('filters artifacts while preserving commands', () => {
+      const result = parseMixedDictationToOps('[BLANK_AUDIO] Hello voicemark comma world', ctx);
+      
+      expect(result.chunks).toHaveLength(3);
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: ',' },
+        { type: 'insertText', text: ' world' }
+      ]);
+    });
+  });
+
+  describe('fuzzy command matching', () => {
+    it('handles "escalimation mark" → "exclamation mark"', () => {
+      const result = parseMixedDictationToOps('Hello voicemark escalimation mark', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: '!' }
+      ]);
+    });
+
+    it('handles "fullstop" → "full stop"', () => {
+      const result = parseMixedDictationToOps('Done voicemark fullstop', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Done' },
+        { type: 'insertText', text: '.' }
+      ]);
+    });
+
+    it('handles "new paragraf" → "new paragraph"', () => {
+      const result = parseMixedDictationToOps('First voicemark new paragraf Second', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'First' },
+        { type: 'insertNewParagraph' },
+        { type: 'insertText', text: 'Second' }
+      ]);
+    });
+
+    it('handles "coma" → "comma"', () => {
+      const result = parseMixedDictationToOps('A voicemark coma B', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'A' },
+        { type: 'insertText', text: ',' },
+        { type: 'insertText', text: ' B' }
+      ]);
+    });
+  });
+
+  describe('punctuation after prefix handling', () => {
+    it('skips comma after Voice Mark prefix', () => {
+      const result = parseMixedDictationToOps('Hello Voice Mark, comma world', ctx);
+      
+      // Should recognize the comma command despite the comma after "Voice Mark"
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: ',' },
+        { type: 'insertText', text: ' world' }
+      ]);
+    });
+
+    it('skips colon after Voice Mark prefix', () => {
+      const result = parseMixedDictationToOps('Hello Voice Mark: question mark', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: '?' }
+      ]);
+    });
+  });
+
+  describe('punctuation deduplication', () => {
+    it('strips trailing period before full stop command', () => {
+      const result = parseMixedDictationToOps('Hello. voicemark full stop', ctx);
+      
+      // Should produce "Hello." not "Hello.."
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: '.' }
+      ]);
+    });
+
+    it('strips trailing question mark before question mark command', () => {
+      const result = parseMixedDictationToOps('What? voicemark question mark', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'What' },
+        { type: 'insertText', text: '?' }
+      ]);
+    });
+
+    it('strips trailing comma before comma command', () => {
+      const result = parseMixedDictationToOps('Hello, voicemark comma World', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: ',' },
+        { type: 'insertText', text: ' World' }
+      ]);
+    });
+
+    it('does not strip when there is no trailing punctuation', () => {
+      const result = parseMixedDictationToOps('Hello voicemark full stop', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertText', text: '.' }
+      ]);
+    });
+  });
 });

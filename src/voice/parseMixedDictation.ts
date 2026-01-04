@@ -58,6 +58,44 @@ const SUPPORTED_COMMANDS = [
 ];
 
 /**
+ * Common Whisper transcription errors mapped to correct commands.
+ * Whisper often mishears these command words.
+ */
+const FUZZY_COMMAND_MAP: Record<string, string> = {
+  // exclamation mark variants
+  'escalimation mark': 'exclamation mark',
+  'esclamation mark': 'exclamation mark',
+  'excalmation mark': 'exclamation mark',
+  'exclaimation mark': 'exclamation mark',
+  'explanation mark': 'exclamation mark',
+  // question mark variants
+  'questioning mark': 'question mark',
+  // full stop variants  
+  'fullstop': 'full stop',
+  'full-stop': 'full stop',
+  // new paragraph variants
+  'new paragraf': 'new paragraph',
+  'new paragragh': 'new paragraph',
+  // comma variants
+  'coma': 'comma',
+};
+
+/**
+ * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * These should be filtered out of the transcript.
+ */
+const WHISPER_ARTIFACT_PATTERN = /\[[\w_]+\]/g;
+
+/**
+ * Strip Whisper artifacts from text.
+ * Removes patterns like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * Preserves all other spacing in the text.
+ */
+function stripWhisperArtifacts(text: string): string {
+  return text.replace(WHISPER_ARTIFACT_PATTERN, '').trim();
+}
+
+/**
  * A chunk representing either plain text or a parsed command.
  */
 export type MixedChunk =
@@ -112,18 +150,24 @@ export function parseMixedDictationToOps(
   input: string,
   ctx: ParseContext
 ): MixedDictationParse {
+  // First, strip Whisper artifacts like [BLANK_AUDIO]
+  const cleanedInput = stripWhisperArtifacts(input);
+  if (!cleanedInput) {
+    return { chunks: [], immediateOps: [], pendingOps: [] };
+  }
+  
   const prefixes = ctx.prefixes || ['voicemark', 'voice mark'];
   const chunks: MixedChunk[] = [];
   
   let currentPos = 0;
   
-  while (currentPos < input.length) {
+  while (currentPos < cleanedInput.length) {
     // Find the next command prefix
-    const prefixResult = findNextPrefix(input, currentPos, prefixes);
+    const prefixResult = findNextPrefix(cleanedInput, currentPos, prefixes);
     
     if (prefixResult === null) {
       // No more commands found - add remaining text as a chunk
-      const remaining = input.substring(currentPos).trim();
+      const remaining = cleanedInput.substring(currentPos).trim();
       if (remaining) {
         chunks.push({ kind: 'text', text: remaining });
       }
@@ -134,14 +178,14 @@ export function parseMixedDictationToOps(
     
     // Add any text before the command as a text chunk
     if (prefixStart > currentPos) {
-      const beforeText = input.substring(currentPos, prefixStart).trim();
+      const beforeText = cleanedInput.substring(currentPos, prefixStart).trim();
       if (beforeText) {
         chunks.push({ kind: 'text', text: beforeText });
       }
     }
     
     // Try to parse a command starting from prefixEnd
-    const commandResult = parseCommandPhrase(input, prefixEnd, SUPPORTED_COMMANDS);
+    const commandResult = parseCommandPhrase(cleanedInput, prefixEnd, SUPPORTED_COMMANDS);
     
     if (commandResult !== null) {
       // Found a supported command - reconstruct full command and parse it
@@ -228,6 +272,32 @@ function buildParseResult(chunks: MixedChunk[]): MixedDictationParse {
         commandProducesPunctuation = true;
       }
       
+      // If this is a punctuation command and previous chunk was text,
+      // strip trailing punctuation from the last text op to avoid doubling
+      // (e.g., Whisper adds "." AND user says "voicemark full stop")
+      if (commandProducesPunctuation && prevChunkType === 'text') {
+        // Get the ops array we're currently working with
+        const targetOps = foundConfirm ? pendingOps : immediateOps;
+        if (targetOps.length > 0) {
+          const lastOp = targetOps[targetOps.length - 1];
+          if (lastOp.type === 'insertText' && lastOp.text) {
+            // Only strip if the text contains word characters (not just punctuation)
+            if (/\w/.test(lastOp.text)) {
+              // Strip trailing punctuation (.?!,;:) from the previous text
+              const strippedText = lastOp.text.replace(/[.?!,;:]+\s*$/, '');
+              if (strippedText !== lastOp.text) {
+                if (strippedText.trim()) {
+                  targetOps[targetOps.length - 1] = { type: 'insertText', text: strippedText };
+                } else {
+                  // If nothing left after stripping, remove the op entirely
+                  targetOps.pop();
+                }
+              }
+            }
+          }
+        }
+      }
+      
       if (parse.kind === 'confirm') {
         if (!foundConfirm) {
           // First confirm - mark the boundary
@@ -295,9 +365,10 @@ function buildParseResult(chunks: MixedChunk[]): MixedDictationParse {
 
 /**
  * Check if a character represents a word boundary.
+ * Includes whitespace AND common punctuation (to handle Whisper artifacts like "Voice Mark, comma")
  */
 function isWordBoundary(char: string | undefined): boolean {
-  return char === undefined || /\s/.test(char);
+  return char === undefined || /[\s,;:.!?-]/.test(char);
 }
 
 /**
@@ -353,6 +424,8 @@ function findNextPrefix(
 
 /**
  * Try to parse a command phrase starting from the given position.
+ * Matches against the list of supported commands.
+ * Also supports fuzzy matching for common Whisper transcription errors.
  */
 function parseCommandPhrase(
   text: string,
@@ -365,12 +438,23 @@ function parseCommandPhrase(
     pos++;
   }
   
+  // Skip punctuation that Whisper might insert after "Voice Mark" (e.g., comma, colon)
+  // This handles cases like "Voice Mark, question mark" → "question mark"
+  while (pos < text.length && /[,;:.-]/.test(text[pos])) {
+    pos++;
+    // Skip any whitespace after the punctuation
+    while (pos < text.length && /\s/.test(text[pos])) {
+      pos++;
+    }
+  }
+  
   if (pos >= text.length) {
     return null;
   }
   
   const textLower = text.toLowerCase();
   
+  // First, try exact matches with supported commands
   // Sort by length (longest first) to prefer longer matches
   const sortedCommands = [...supportedCommands].sort((a, b) => b.length - a.length);
   
@@ -389,6 +473,33 @@ function parseCommandPhrase(
       if (isWordBoundary(afterChar) || endPos === text.length) {
         return {
           commandPhrase: command,
+          endPos: endPos
+        };
+      }
+    }
+  }
+  
+  // If no exact match, try fuzzy matching for known Whisper transcription errors
+  // Build all fuzzy patterns sorted by length (longest first)
+  const fuzzyPatterns = Object.keys(FUZZY_COMMAND_MAP).sort((a, b) => b.length - a.length);
+  
+  for (const fuzzyPattern of fuzzyPatterns) {
+    const patternLower = fuzzyPattern.toLowerCase();
+    const endPos = pos + patternLower.length;
+    
+    if (endPos > text.length) {
+      continue;
+    }
+    
+    const textSlice = textLower.substring(pos, endPos);
+    if (textSlice === patternLower) {
+      // Check if this is followed by a word boundary
+      const afterChar = endPos < text.length ? text[endPos] : undefined;
+      
+      if (isWordBoundary(afterChar) || endPos === text.length) {
+        // Found a fuzzy match - return the corrected command
+        return {
+          commandPhrase: FUZZY_COMMAND_MAP[fuzzyPattern],
           endPos: endPos
         };
       }

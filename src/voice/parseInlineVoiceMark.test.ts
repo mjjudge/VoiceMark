@@ -487,4 +487,127 @@ describe('parseInlineVoiceMark', () => {
       expect(result).toBe('A, B, C.');
     });
   });
+
+  describe('Whisper artifact filtering', () => {
+    it('should filter out [BLANK_AUDIO] from text', () => {
+      const text = 'Hello world [BLANK_AUDIO]';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello world' });
+    });
+
+    it('should filter out [BLANK_AUDIO] from middle of text', () => {
+      const text = 'Hello [BLANK_AUDIO] world';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello  world' });
+    });
+
+    it('should filter out multiple Whisper artifacts', () => {
+      const text = '[MUSIC] Hello [BLANK_AUDIO] world [NOISE]';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello  world' });
+    });
+
+    it('should return empty ops if only artifact remains', () => {
+      const text = '[BLANK_AUDIO]';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(0);
+    });
+
+    it('should handle artifacts with commands', () => {
+      const text = 'Hello voicemark comma [BLANK_AUDIO] world';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(3);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' world' });
+    });
+  });
+
+  describe('fuzzy command matching', () => {
+    it('should handle "escalimation mark" as "exclamation mark"', () => {
+      const text = 'Hello voicemark escalimation mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '!' });
+    });
+
+    it('should handle "esclamation mark" as "exclamation mark"', () => {
+      const text = 'Wow voicemark esclamation mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[1]).toEqual({ type: 'insertText', text: '!' });
+    });
+
+    it('should handle "fullstop" as "full stop"', () => {
+      const text = 'Done voicemark fullstop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
+    });
+
+    it('should handle "new paragraf" as "new paragraph"', () => {
+      const text = 'Line one voicemark new paragraf Line two';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(3);
+      expect(ops[1]).toEqual({ type: 'insertNewParagraph' });
+    });
+  });
+
+  describe('punctuation deduplication', () => {
+    it('should strip trailing period when followed by full stop command', () => {
+      const text = 'This is done. voicemark full stop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      // Should strip the period from "done." before adding the command's period
+      expect(ops).toHaveLength(2);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'This is done' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
+    });
+
+    it('should strip trailing question mark when followed by question mark command', () => {
+      const text = 'Is this done? voicemark question mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Is this done' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '?' });
+    });
+
+    it('should not strip punctuation from command-inserted punctuation', () => {
+      const text = 'voicemark comma voicemark full stop';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      // Both punctuation commands should remain
+      expect(ops).toHaveLength(2);
+      expect(ops[0]).toEqual({ type: 'insertText', text: ',' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
+    });
+
+    it('should handle mixed Whisper punctuation and commands', () => {
+      // In this case, Whisper transcribes "First sentence." and the user says "voicemark full stop"
+      // The trailing period from "sentence." should be stripped before the command adds "."
+      const text = 'First sentence. voicemark full stop Second sentence';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      // "First sentence." should have trailing period stripped, command adds "."
+      // Then " Second sentence" follows
+      expect(ops).toHaveLength(3);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'First sentence' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' Second sentence' });
+    });
+  });
 });

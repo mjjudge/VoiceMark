@@ -10,11 +10,36 @@
  * - Parses each command and emits corresponding operations
  * - Continues scanning after each command until the text is exhausted
  * - Handles unsupported commands by treating them as normal text
+ * - Filters out Whisper artifacts like [BLANK_AUDIO]
+ * - Strips trailing punctuation before punctuation commands to avoid doubling
  */
 
 import type { EditorOp } from '../editor/ops';
 import type { ParseContext } from './types';
 import { voiceCommandToEditorOp } from './voiceCommandToEditorOp';
+
+/**
+ * Common Whisper transcription errors mapped to correct commands.
+ * Whisper often mishears these command words.
+ */
+const FUZZY_COMMAND_MAP: Record<string, string> = {
+  // exclamation mark variants
+  'escalimation mark': 'exclamation mark',
+  'esclamation mark': 'exclamation mark',
+  'excalmation mark': 'exclamation mark',
+  'exclaimation mark': 'exclamation mark',
+  'explanation mark': 'exclamation mark',
+  // question mark variants
+  'questioning mark': 'question mark',
+  // full stop variants  
+  'fullstop': 'full stop',
+  'full-stop': 'full stop',
+  // new paragraph variants
+  'new paragraf': 'new paragraph',
+  'new paragragh': 'new paragraph',
+  // comma variants
+  'coma': 'comma',
+};
 
 /**
  * Supported command phrases for v0.1
@@ -57,6 +82,22 @@ const SUPPORTED_COMMANDS = [
 ];
 
 /**
+ * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * These should be filtered out of the transcript.
+ */
+const WHISPER_ARTIFACT_PATTERN = /\[[\w_]+\]/g;
+
+/**
+ * Strip Whisper artifacts from text.
+ * Removes patterns like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * Preserves all other spacing in the text.
+ */
+function stripWhisperArtifacts(text: string): string {
+  // Remove artifacts only, preserve all other spacing
+  return text.replace(WHISPER_ARTIFACT_PATTERN, '').trim();
+}
+
+/**
  * Parse text containing multiple inline VoiceMark commands.
  * 
  * @param text - The ASR final text to parse
@@ -90,6 +131,12 @@ export function parseInlineVoiceMark(
   text: string,
   context: ParseContext
 ): EditorOp[] {
+  // First, strip Whisper artifacts like [BLANK_AUDIO]
+  const cleanedText = stripWhisperArtifacts(text);
+  if (!cleanedText) {
+    return [];
+  }
+  
   const ops: EditorOp[] = [];
   const prefixes = context.prefixes || ['voicemark', 'voice mark'];
   
@@ -97,13 +144,13 @@ export function parseInlineVoiceMark(
   // Track what the previous operation was to handle spacing correctly
   let prevOpType: 'none' | 'text' | 'punctuation' | 'newline' | 'command' = 'none';
   
-  while (currentPos < text.length) {
+  while (currentPos < cleanedText.length) {
     // Find the next command prefix
-    const result = findNextPrefix(text, currentPos, prefixes);
+    const result = findNextPrefix(cleanedText, currentPos, prefixes);
     
     if (result === null) {
       // No more commands found - insert remaining text
-      const remaining = text.substring(currentPos);
+      const remaining = cleanedText.substring(currentPos);
       const trimmed = remaining.trim();
       if (trimmed) {
         // Add leading space if previous op was punctuation or command (not newline, not first)
@@ -117,7 +164,7 @@ export function parseInlineVoiceMark(
     
     // Insert any text before the command (trim both sides)
     if (prefixStart > currentPos) {
-      const beforeText = text.substring(currentPos, prefixStart).trim();
+      const beforeText = cleanedText.substring(currentPos, prefixStart).trim();
       if (beforeText) {
         // Add leading space if previous op was punctuation or command (not newline, not first)
         const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
@@ -127,9 +174,31 @@ export function parseInlineVoiceMark(
     }
     
     // Try to parse a command starting from prefixEnd
-    const commandResult = parseCommandPhrase(text, prefixEnd, SUPPORTED_COMMANDS);
+    const commandResult = parseCommandPhrase(cleanedText, prefixEnd, SUPPORTED_COMMANDS);
     
     if (commandResult !== null) {
+      // If this is a punctuation command, strip trailing punctuation from the previous text op
+      // This handles cases where Whisper adds "." and then user says "voicemark full stop"
+      // Only strip from text that has actual word content (not from command-inserted punctuation)
+      if (isPunctuationCommand(commandResult.commandPhrase) && ops.length > 0 && prevOpType === 'text') {
+        const lastOp = ops[ops.length - 1];
+        if (lastOp.type === 'insertText' && lastOp.text) {
+          // Only strip if the text contains word characters (not just punctuation)
+          if (/\w/.test(lastOp.text)) {
+            // Strip trailing punctuation (.?!,;:) from the previous text
+            const strippedText = lastOp.text.replace(/[.?!,;:]+\s*$/, '');
+            if (strippedText !== lastOp.text) {
+              if (strippedText.trim()) {
+                ops[ops.length - 1] = { type: 'insertText', text: strippedText };
+              } else {
+                // If nothing left after stripping, remove the op entirely
+                ops.pop();
+              }
+            }
+          }
+        }
+      }
+      
       // Found a supported command - reconstruct full command and parse it
       const fullCommand = prefix + ' ' + commandResult.commandPhrase;
       const parsed = voiceCommandToEditorOp(fullCommand, context);
@@ -175,7 +244,7 @@ export function parseInlineVoiceMark(
  * Includes whitespace AND common punctuation (to handle Whisper artifacts like "Voice Mark, comma")
  */
 function isWordBoundary(char: string | undefined): boolean {
-  return char === undefined || /[\s,;:\-\.!\?]/.test(char);
+  return char === undefined || /[\s,;:.!?-]/.test(char);
 }
 
 /**
@@ -241,6 +310,7 @@ function findNextPrefix(
 /**
  * Try to parse a command phrase starting from the given position.
  * Matches against the list of supported commands.
+ * Also supports fuzzy matching for common Whisper transcription errors.
  * 
  * @param text - The text to parse
  * @param startPos - Position to start parsing from (after the prefix)
@@ -260,7 +330,7 @@ function parseCommandPhrase(
   
   // Skip punctuation that Whisper might insert after "Voice Mark" (e.g., comma, colon)
   // This handles cases like "Voice Mark, question mark" → "question mark"
-  while (pos < text.length && /[,;:\-]/.test(text[pos])) {
+  while (pos < text.length && /[,;:.-]/.test(text[pos])) {
     pos++;
     // Skip any whitespace after the punctuation
     while (pos < text.length && /\s/.test(text[pos])) {
@@ -274,7 +344,7 @@ function parseCommandPhrase(
   
   const textLower = text.toLowerCase();
   
-  // Try to match each supported command
+  // First, try exact matches with supported commands
   // Sort by length (longest first) to prefer longer matches
   const sortedCommands = [...supportedCommands].sort((a, b) => b.length - a.length);
   
@@ -295,6 +365,33 @@ function parseCommandPhrase(
         // Found a match
         return {
           commandPhrase: command, // Use the normalized command phrase
+          endPos: endPos
+        };
+      }
+    }
+  }
+  
+  // If no exact match, try fuzzy matching for known Whisper transcription errors
+  // Build all fuzzy patterns sorted by length (longest first)
+  const fuzzyPatterns = Object.keys(FUZZY_COMMAND_MAP).sort((a, b) => b.length - a.length);
+  
+  for (const fuzzyPattern of fuzzyPatterns) {
+    const patternLower = fuzzyPattern.toLowerCase();
+    const endPos = pos + patternLower.length;
+    
+    if (endPos > text.length) {
+      continue;
+    }
+    
+    const textSlice = textLower.substring(pos, endPos);
+    if (textSlice === patternLower) {
+      // Check if this is followed by a word boundary
+      const afterChar = endPos < text.length ? text[endPos] : undefined;
+      
+      if (isWordBoundary(afterChar) || endPos === text.length) {
+        // Found a fuzzy match - return the corrected command
+        return {
+          commandPhrase: FUZZY_COMMAND_MAP[fuzzyPattern],
           endPos: endPos
         };
       }

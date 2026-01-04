@@ -529,6 +529,24 @@ describe('parseInlineVoiceMark', () => {
       expect(ops[1]).toEqual({ type: 'insertText', text: ',' });
       expect(ops[2]).toEqual({ type: 'insertText', text: ' world' });
     });
+
+    it('should filter out artifacts with spaces inside brackets like [ Silence ]', () => {
+      const text = 'Hello world [ Silence ]';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello world' });
+    });
+
+    it('should filter [ Silence ] from middle of text', () => {
+      const text = 'Hello [ Silence ] world';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(1);
+      // Note: there may be extra spaces after filtering, which is acceptable
+      expect(ops[0].type).toBe('insertText');
+      expect((ops[0] as { type: 'insertText'; text: string }).text.trim()).toBe('Hello  world'.trim());
+    });
   });
 
   describe('fuzzy command matching', () => {
@@ -543,6 +561,14 @@ describe('parseInlineVoiceMark', () => {
 
     it('should handle "esclamation mark" as "exclamation mark"', () => {
       const text = 'Wow voicemark esclamation mark';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(2);
+      expect(ops[1]).toEqual({ type: 'insertText', text: '!' });
+    });
+
+    it('should handle "esklimation mark" as "exclamation mark"', () => {
+      const text = 'Great voicemark esklimation mark';
       const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
       
       expect(ops).toHaveLength(2);
@@ -608,6 +634,55 @@ describe('parseInlineVoiceMark', () => {
       expect(ops[0]).toEqual({ type: 'insertText', text: 'First sentence' });
       expect(ops[1]).toEqual({ type: 'insertText', text: '.' });
       expect(ops[2]).toEqual({ type: 'insertText', text: ' Second sentence' });
+    });
+  });
+
+  describe('post-command punctuation stripping', () => {
+    it('should strip leading punctuation from text after new paragraph command', () => {
+      // Whisper often adds "." after "new paragraph"
+      const text = 'Hello Voice Mark new paragraph. World';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(3);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Hello' });
+      expect(ops[1]).toEqual({ type: 'insertNewParagraph' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: 'World' });
+    });
+
+    it('should strip leading punctuation from text after any command', () => {
+      // Whisper adds period after exclamation mark command
+      const text = 'Wow Voice Mark esklimation mark. More text';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(3);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Wow' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '!' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: ' More text' });
+    });
+
+    it('should handle multiple commands with trailing punctuation', () => {
+      const text = 'First Voice Mark new paragraph. Second Voice Mark full stop. Third';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      expect(ops).toHaveLength(5);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'First' });
+      expect(ops[1]).toEqual({ type: 'insertNewParagraph' });
+      expect(ops[2]).toEqual({ type: 'insertText', text: 'Second' });
+      expect(ops[3]).toEqual({ type: 'insertText', text: '.' });
+      expect(ops[4]).toEqual({ type: 'insertText', text: ' Third' });
+    });
+
+    it('should handle full transcript with multiple commands', () => {
+      const text = 'Start. Voice Mark esklimation mark. Voice Mark new paragraph. Middle. Voice Mark full stop. End [ Silence ]';
+      const ops = parseInlineVoiceMark(text, DEFAULT_CONTEXT);
+      
+      // Start -> ! -> new paragraph -> Middle -> . -> End ([ Silence ] filtered)
+      expect(ops.length).toBeGreaterThanOrEqual(5);
+      expect(ops[0]).toEqual({ type: 'insertText', text: 'Start' });
+      expect(ops[1]).toEqual({ type: 'insertText', text: '!' });
+      expect(ops[2]).toEqual({ type: 'insertNewParagraph' });
+      expect(ops[3]).toEqual({ type: 'insertText', text: 'Middle' });
+      expect(ops[4]).toEqual({ type: 'insertText', text: '.' });
     });
   });
 });

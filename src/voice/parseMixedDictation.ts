@@ -62,12 +62,16 @@ const SUPPORTED_COMMANDS = [
  * Whisper often mishears these command words.
  */
 const FUZZY_COMMAND_MAP: Record<string, string> = {
-  // exclamation mark variants
+  // exclamation mark variants (Whisper often mishears this)
   'escalimation mark': 'exclamation mark',
   'esclamation mark': 'exclamation mark',
+  'esklimation mark': 'exclamation mark',
+  'esklamation mark': 'exclamation mark',
   'excalmation mark': 'exclamation mark',
   'exclaimation mark': 'exclamation mark',
   'explanation mark': 'exclamation mark',
+  'exclimation mark': 'exclamation mark',
+  'exclemation mark': 'exclamation mark',
   // question mark variants
   'questioning mark': 'question mark',
   // full stop variants  
@@ -81,10 +85,11 @@ const FUZZY_COMMAND_MAP: Record<string, string> = {
 };
 
 /**
- * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], [ Silence ], etc.
  * These should be filtered out of the transcript.
+ * Handles optional spaces inside brackets.
  */
-const WHISPER_ARTIFACT_PATTERN = /\[[\w_]+\]/g;
+const WHISPER_ARTIFACT_PATTERN = /\[\s*[\w_]+\s*\]/gi;
 
 /**
  * Strip Whisper artifacts from text.
@@ -167,7 +172,9 @@ export function parseMixedDictationToOps(
     
     if (prefixResult === null) {
       // No more commands found - add remaining text as a chunk
-      const remaining = cleanedInput.substring(currentPos).trim();
+      // Strip leading punctuation that Whisper may have added after a previous command
+      let remaining = cleanedInput.substring(currentPos).trim();
+      remaining = remaining.replace(/^[.?!,;:\s]+/, '');
       if (remaining) {
         chunks.push({ kind: 'text', text: remaining });
       }
@@ -178,7 +185,9 @@ export function parseMixedDictationToOps(
     
     // Add any text before the command as a text chunk
     if (prefixStart > currentPos) {
-      const beforeText = cleanedInput.substring(currentPos, prefixStart).trim();
+      let beforeText = cleanedInput.substring(currentPos, prefixStart).trim();
+      // Strip leading punctuation that Whisper may have added after a previous command
+      beforeText = beforeText.replace(/^[.?!,;:\s]+/, '');
       if (beforeText) {
         chunks.push({ kind: 'text', text: beforeText });
       }

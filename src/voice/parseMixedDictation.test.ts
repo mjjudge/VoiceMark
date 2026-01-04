@@ -355,4 +355,36 @@ describe('parseMixedDictationToOps', () => {
       ]);
     });
   });
+
+  describe('post-command punctuation stripping', () => {
+    it('strips leading punctuation from text after new paragraph command', () => {
+      const result = parseMixedDictationToOps('Hello Voice Mark new paragraph. World', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Hello' },
+        { type: 'insertNewParagraph' },
+        { type: 'insertText', text: 'World' }
+      ]);
+    });
+
+    it('strips leading punctuation from text after exclamation command', () => {
+      const result = parseMixedDictationToOps('Wow Voice Mark esklimation mark. More', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Wow' },
+        { type: 'insertText', text: '!' },
+        { type: 'insertText', text: ' More' }
+      ]);
+    });
+
+    it('handles full transcript with trailing punctuation after commands', () => {
+      const result = parseMixedDictationToOps('Start Voice Mark new paragraph. End', ctx);
+      
+      expect(result.immediateOps).toEqual([
+        { type: 'insertText', text: 'Start' },
+        { type: 'insertNewParagraph' },
+        { type: 'insertText', text: 'End' }
+      ]);
+    });
+  });
 });

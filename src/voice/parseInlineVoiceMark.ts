@@ -23,12 +23,16 @@ import { voiceCommandToEditorOp } from './voiceCommandToEditorOp';
  * Whisper often mishears these command words.
  */
 const FUZZY_COMMAND_MAP: Record<string, string> = {
-  // exclamation mark variants
+  // exclamation mark variants (Whisper often mishears this)
   'escalimation mark': 'exclamation mark',
   'esclamation mark': 'exclamation mark',
+  'esklimation mark': 'exclamation mark',
+  'esklamation mark': 'exclamation mark',
   'excalmation mark': 'exclamation mark',
   'exclaimation mark': 'exclamation mark',
   'explanation mark': 'exclamation mark',
+  'exclimation mark': 'exclamation mark',
+  'exclemation mark': 'exclamation mark',
   // question mark variants
   'questioning mark': 'question mark',
   // full stop variants  
@@ -82,10 +86,11 @@ const SUPPORTED_COMMANDS = [
 ];
 
 /**
- * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], etc.
+ * Pattern to match Whisper artifacts like [BLANK_AUDIO], [MUSIC], [NOISE], [ Silence ], etc.
  * These should be filtered out of the transcript.
+ * Handles optional spaces inside brackets.
  */
-const WHISPER_ARTIFACT_PATTERN = /\[[\w_]+\]/g;
+const WHISPER_ARTIFACT_PATTERN = /\[\s*[\w_]+\s*\]/gi;
 
 /**
  * Strip Whisper artifacts from text.
@@ -151,7 +156,10 @@ export function parseInlineVoiceMark(
     if (result === null) {
       // No more commands found - insert remaining text
       const remaining = cleanedText.substring(currentPos);
-      const trimmed = remaining.trim();
+      // Strip leading punctuation that Whisper may have added after the last command
+      // e.g., "Voice Mark new paragraph." → the trailing "." should be stripped
+      const stripped = remaining.replace(/^[.?!,;:\s]+/, '');
+      const trimmed = stripped.trim();
       if (trimmed) {
         // Add leading space if previous op was punctuation or command (not newline, not first)
         const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
@@ -162,9 +170,12 @@ export function parseInlineVoiceMark(
     
     const { prefixStart, prefixEnd, prefix } = result;
     
-    // Insert any text before the command (trim both sides)
+    // Insert any text before the command
     if (prefixStart > currentPos) {
-      const beforeText = cleanedText.substring(currentPos, prefixStart).trim();
+      let beforeText = cleanedText.substring(currentPos, prefixStart).trim();
+      // Strip leading punctuation that Whisper may have added after a previous command
+      // e.g., "Voice Mark comma. Hello" → the leading "." before "Hello" should be stripped
+      beforeText = beforeText.replace(/^[.?!,;:\s]+/, '');
       if (beforeText) {
         // Add leading space if previous op was punctuation or command (not newline, not first)
         const needsSpace = prevOpType === 'punctuation' || prevOpType === 'command';
